@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: unlost-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: unlost
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - unlost-postgres:/var/lib/postgresql/data
+
+volumes:
+  unlost-postgres:

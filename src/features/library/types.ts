@@ -6,7 +6,8 @@ export type LibraryItem = {
   title: string;
   description: string;
   source: string;
-  savedAt: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type LibraryFilter = "all" | CaptureType;

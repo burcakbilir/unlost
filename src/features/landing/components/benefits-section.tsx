@@ -8,24 +8,24 @@ type Benefits = {
 const benefits: Benefits[] = [
   {
     id: "everything",
-    eyebrow: "Her şey bir arada",
-    title: "Farklı formatlar, aynı hafıza.",
+    eyebrow: "Everything in one place",
+    title: "Different formats, one memory.",
     description:
-      "Link, not ve ekran görüntülerini uygulamalar arasında kaybetmeden tek bir kütüphanede tut.",
+      "Keep links, notes and screenshots in a single library instead of losing them across apps.",
   },
   {
     id: "context",
-    eyebrow: "Bağlamı koru",
-    title: "Neden kaydettiğini de hatırla.",
+    eyebrow: "Keep the context",
+    title: "Remember why you saved it too.",
     description:
-      "Kısa notlar ve etiketlerle bir kaydın sana neden önemli geldiğini gelecekteki kendine anlat.",
+      "Short notes and tags tell your future self why an item mattered in the first place.",
   },
   {
     id: "resurface",
-    eyebrow: "Yeniden karşılaş",
-    title: "Arşiv değil, yaşayan bir alan.",
+    eyebrow: "Rediscover it",
+    title: "A living space, not an archive.",
     description:
-      "Eski kayıtların sessizce birikmesin; doğru zamanda yeniden görünür olsun.",
+      "Old saves shouldn't just pile up quietly — they should resurface at the right time.",
   },
 ];
 
@@ -34,13 +34,13 @@ export function BenefitsSection() {
     <section aria-labelledby="benefits-title" className="bg-sidebar text-white">
       <div className="mx-auto max-w-6xl px-6 py-24">
         <p className="text-xs uppercase tracking-widest text-white/60">
-          Neden Unlost?
+          Why Unlost?
         </p>
         <h2
           id="benefits-title"
           className="mt-6 max-w-3xl font-display text-4xl leading-tight sm:text-5xl lg:text-6xl"
         >
-          Kaydettiğin şeyler, yeniden işe yarasın.
+          Make what you saved useful again.
         </h2>
         <div className="mt-16 grid gap-10 lg:grid-cols-3">
           {benefits.map((benefit) => (

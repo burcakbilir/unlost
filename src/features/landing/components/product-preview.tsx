@@ -23,30 +23,30 @@ const toneClasses: Record<PreviewTone, string> = {
 const previewItems: PreviewItem[] = [
   {
     id: "art-of-noticing",
-    type: "Okunacak",
+    type: "To read",
     title: "The art of noticing",
     description:
-      "Daha iyi fikirler için çevrendeki küçük detayları fark etmeyi öğren.",
-    meta: "medium.com · 2 gün önce",
+      "Learn to notice the small details around you for better ideas.",
+    meta: "medium.com · 2 days ago",
     tone: "mint",
     symbol: "↗",
   },
   {
     id: "quiet-workspaces",
-    type: "Fikir",
-    title: "Sessiz çalışma alanları",
+    type: "Idea",
+    title: "Quiet workspaces",
     description:
-      "Kafeler için gürültü, priz ve internet kalitesi filtresi olabilir.",
-    meta: "Kısa not · 4 gün önce",
+      "A filter for noise, outlets and internet quality could work for cafes.",
+    meta: "Quick note · 4 days ago",
     tone: "lilac",
     symbol: "✦",
   },
   {
     id: "warm-interfaces",
-    type: "İlham",
+    type: "Inspiration",
     title: "Warm minimal interfaces",
-    description: "Steril görünmeden sade hissettiren arayüz referansları.",
-    meta: "Ekran görüntüsü · 1 hafta önce",
+    description: "Interface references that feel simple without going sterile.",
+    meta: "Screenshot · 1 week ago",
     tone: "peach",
     symbol: "◌",
   },
@@ -79,7 +79,7 @@ export function ProductPreview() {
       <div className="mx-auto max-w-6xl px-6 pb-24">
         <div className="flex min-h-96 overflow-hidden border border-border bg-surface shadow-2xl">
           <aside
-            aria-label="Örnek uygulama menüsü"
+            aria-label="Example app menu"
             className="flex w-12 shrink-0 flex-col items-center bg-sidebar py-4 text-white sm:w-16 sm:py-5"
           >
             <span className="font-display text-2xl italic">u.</span>
@@ -97,12 +97,12 @@ export function ProductPreview() {
           <div className="min-w-0 flex-1 p-4 sm:p-8">
             <header className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-widest">Günaydın, John</p>
+                <p className="text-xs uppercase tracking-widest">Good morning, John</p>
                 <h2
                   id="product-preview-title"
                   className="mt-2 font-display text-2xl sm:text-3xl"
                 >
-                  Bugün neyi hatırlamak istersin?
+                  What do you want to remember today?
                 </h2>
               </div>
               <div
@@ -110,18 +110,18 @@ export function ProductPreview() {
                 className="flex shrink-0 items-center gap-2 border border-border bg-white/40 px-3 py-2 text-sm text-muted"
               >
                 <span>⌕</span>
-                <span className="hidden sm:inline">Ara</span>
+                <span className="hidden sm:inline">Search</span>
               </div>
             </header>
 
             <ul
-              aria-label="Örnek kayıt filtreleri"
+              aria-label="Example item filters"
               className="mt-8 flex gap-6 overflow-x-auto border-b border-border text-sm text-muted"
             >
-              <li className="shrink-0 border-b-2 border-foreground pb-3 text-foreground">Tümü 24</li>
-              <li className="shrink-0 pb-3">Linkler 8</li>
-              <li className="shrink-0 pb-3">Notlar 11</li>
-              <li className="shrink-0 pb-3">Görseller 5</li>
+              <li className="shrink-0 border-b-2 border-foreground pb-3 text-foreground">All 24</li>
+              <li className="shrink-0 pb-3">Links 8</li>
+              <li className="shrink-0 pb-3">Notes 11</li>
+              <li className="shrink-0 pb-3">Images 5</li>
             </ul>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -138,11 +138,11 @@ export function ProductPreview() {
                 ✦
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-xs uppercase tracking-widest text-white/60">Unlost hatırlatıyor</p>
-                <p className="mt-1 font-display text-lg">3 hafta önce kaydetmiştin</p>
-                <p className="mt-1 text-sm text-white/60">Portföy için mikro etkileşim örnekleri</p>
+                <p className="text-xs uppercase tracking-widest text-white/60">Unlost reminder</p>
+                <p className="mt-1 font-display text-lg">You saved this 3 weeks ago</p>
+                <p className="mt-1 text-sm text-white/60">Micro-interaction examples for your portfolio</p>
               </div>
-              <span className="shrink-0 bg-accent px-4 py-3 text-sm text-foreground">Yeniden keşfet →</span>
+              <span className="shrink-0 bg-accent px-4 py-3 text-sm text-foreground">Rediscover →</span>
             </div>
           </div>
         </div>

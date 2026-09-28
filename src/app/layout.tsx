@@ -16,21 +16,21 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Unlost — Kaydettiklerini yeniden bul",
+  title: "Unlost — Find what you saved",
   description:
-    "Linklerini, ekran görüntülerini ve düşüncelerini tek bir yerde topla. Unlost, unuttuklarını doğru zamanda yeniden karşına çıkarsın.",
+    "Collect your links, screenshots and thoughts in one place. Unlost brings back what you'd otherwise forget, right when you need it.",
   keywords: [
-    "kişisel bilgi yönetimi",
-    "yer imleri",
-    "notlar",
-    "dijital hafıza",
+    "personal knowledge management",
+    "bookmarks",
+    "notes",
+    "digital memory",
   ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="tr"
+      lang="en"
       data-scroll-behavior="smooth"
       className={`${dmSans.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
