@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getRequestUser } from "@/lib/auth";
+import { enrichLibraryItem } from "@/lib/library-enrichment";
 
 const captureTypes = ["link", "note", "image"] as const;
 
@@ -16,6 +17,7 @@ const itemSelect = {
   title: true,
   description: true,
   source: true,
+  tags: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -62,6 +64,18 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     },
     select: itemSelect,
   });
+
+  const contentChanged = body?.title !== undefined || body?.description !== undefined;
+
+  if (contentChanged) {
+    after(async () => {
+      try {
+        await enrichLibraryItem(item.id, item.title, item.description);
+      } catch (error) {
+        console.error(`Failed to enrich library item ${item.id}:`, error);
+      }
+    });
+  }
 
   return NextResponse.json({ item });
 }

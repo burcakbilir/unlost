@@ -26,6 +26,7 @@ model LibraryItem {
   title       String
   description String   @default("")
   source      String   @default("")
+  tags        String[] @default([])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

@@ -10,6 +10,7 @@ import type {
   CaptureType,
   LibraryFilter,
   LibraryItem,
+  SearchMatch,
 } from "@/features/library/types";
 
 type LibraryCardProps = {
@@ -65,6 +66,18 @@ function LibraryCard({ item }: LibraryCardProps) {
       </div>
       <h3 className="mt-5 font-display text-2xl">{item.title}</h3>
       <p className="mt-2 text-sm leading-6 text-muted">{item.description}</p>
+      {item.tags.length > 0 && (
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {item.tags.map((tag) => (
+            <li
+              key={tag}
+              className="bg-surface px-2 py-1 text-xs text-muted"
+            >
+              {tag}
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="mt-auto flex items-center justify-between gap-3 pt-6 text-xs text-muted">
         <span className="truncate">{item.source}</span>
         <span className="shrink-0">{formatRelativeTime(item.updatedAt)}</span>
@@ -99,6 +112,11 @@ export function LibraryDashboard() {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [askQuery, setAskQuery] = useState("");
+  const [askAnswer, setAskAnswer] = useState<string | null>(null);
+  const [askMatches, setAskMatches] = useState<SearchMatch[]>([]);
+  const [isAsking, setIsAsking] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -183,6 +201,32 @@ export function LibraryDashboard() {
     }
   }
 
+  async function handleAsk(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedQuery = askQuery.trim();
+    if (!trimmedQuery) return;
+
+    setIsAsking(true);
+    setAskError(null);
+
+    try {
+      const result = await apiPost<{ answer: string; matches: SearchMatch[] }>(
+        "/api/search",
+        { query: trimmedQuery },
+      );
+      setAskAnswer(result.answer);
+      setAskMatches(result.matches);
+    } catch (error) {
+      setAskAnswer(null);
+      setAskMatches([]);
+      setAskError(
+        error instanceof Error ? error.message : "Could not search your library",
+      );
+    } finally {
+      setIsAsking(false);
+    }
+  }
+
   async function handleSignOut() {
     await apiPost("/api/auth/logout", {});
     router.push("/login");
@@ -241,6 +285,61 @@ export function LibraryDashboard() {
             {isComposerOpen ? "Close form" : "+ New item"}
           </button>
         </div>
+
+        <section
+          aria-labelledby="ask-library-title"
+          className="mt-8 border border-border bg-background p-5 sm:p-8"
+        >
+          <h2 id="ask-library-title" className="font-display text-2xl">
+            Ask your library
+          </h2>
+          <form
+            onSubmit={(event) => void handleAsk(event)}
+            className="mt-4 flex flex-col gap-3 sm:flex-row"
+          >
+            <label className="flex-1">
+              <span className="sr-only">Ask a question about what you saved</span>
+              <input
+                type="search"
+                value={askQuery}
+                onChange={(event) => setAskQuery(event.target.value)}
+                placeholder="What did I save about..."
+                className="min-h-12 w-full border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={isAsking || !askQuery.trim()}
+              className="bg-foreground px-6 py-3 text-white disabled:opacity-60"
+            >
+              {isAsking ? "Thinking..." : "Ask"}
+            </button>
+          </form>
+
+          {askError ? (
+            <p className="mt-4 text-sm text-red-600">{askError}</p>
+          ) : null}
+
+          {askAnswer ? (
+            <div className="mt-5">
+              <p className="leading-7">{askAnswer}</p>
+              {askMatches.length > 0 && (
+                <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {askMatches.map((match, index) => (
+                    <li
+                      key={match.id}
+                      className="border border-border bg-white/60 p-3 text-sm"
+                    >
+                      <p className="text-xs text-muted">[{index + 1}]</p>
+                      <p className="font-medium">{match.title}</p>
+                      <p className="mt-1 text-muted">{match.description}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
+        </section>
 
         {isComposerOpen && (
           <section
