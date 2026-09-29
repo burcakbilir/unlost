@@ -167,12 +167,15 @@ export function LibraryDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [composerType, setComposerType] = useState<CaptureType>("note");
   const [imageFile, setImageFile] = useState<{
     dataUrl: string;
     base64: string;
     mimeType: string;
+    fileName: string;
   } | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [askQuery, setAskQuery] = useState("");
   const [askAnswer, setAskAnswer] = useState<string | null>(null);
   const [askMatches, setAskMatches] = useState<SearchMatch[]>([]);
@@ -271,7 +274,7 @@ export function LibraryDashboard() {
     reader.onload = () => {
       const dataUrl = reader.result as string;
       const base64 = dataUrl.split(",")[1] ?? "";
-      setImageFile({ dataUrl, base64, mimeType: file.type });
+      setImageFile({ dataUrl, base64, mimeType: file.type, fileName: file.name });
     };
     reader.onerror = () => {
       setImageError("Could not read this file");
@@ -288,7 +291,9 @@ export function LibraryDashboard() {
     const source = String(formData.get("source") ?? "").trim();
     const rawType = String(formData.get("type") ?? "note");
     const type: CaptureType = isCaptureType(rawType) ? rawType : "note";
-    const hasImage = Boolean(imageFile) || Boolean(editingItem?.imageMimeType);
+    const hasImage =
+      composerType === "image" &&
+      (Boolean(imageFile) || Boolean(editingItem?.imageMimeType));
 
     if (!title || (!description && !hasImage)) return;
 
@@ -334,6 +339,7 @@ export function LibraryDashboard() {
 
   function handleEdit(item: LibraryItem) {
     setEditingItem(item);
+    setComposerType(item.type);
     setSaveError(null);
     setImageFile(null);
     setImageError(null);
@@ -446,6 +452,7 @@ export function LibraryDashboard() {
             aria-controls="capture-composer"
             onClick={() => {
               setEditingItem(null);
+              setComposerType("note");
               setImageFile(null);
               setImageError(null);
               setIsComposerOpen((isOpen) => !isOpen);
@@ -569,8 +576,11 @@ export function LibraryDashboard() {
                 Type
                 <select
                   name="type"
+                  value={composerType}
+                  onChange={(event) =>
+                    setComposerType(event.target.value as CaptureType)
+                  }
                   className="min-h-12 border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
-                  defaultValue={editingItem?.type ?? "note"}
                 >
                   <option value="note">Note</option>
                   <option value="link">Link</option>
@@ -587,43 +597,65 @@ export function LibraryDashboard() {
                   placeholder="https://..."
                 />
               </label>
-              <label className="grid gap-2 text-sm font-medium lg:col-span-2">
-                Image (optional)
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  onChange={handleImageChange}
-                  className="min-h-12 border border-border bg-white px-4 py-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </label>
-              {imageError ? (
-                <p className="text-sm text-red-600 lg:col-span-2">{imageError}</p>
-              ) : null}
-              {imageFile ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={imageFile.dataUrl}
-                  alt="Selected preview"
-                  className="max-h-48 w-auto border border-border object-contain lg:col-span-2"
-                />
-              ) : editingItem?.imageMimeType ? (
-                <div className="lg:col-span-2">
-                  <p className="text-xs text-muted">
-                    Current image — choose a new file to replace it
-                  </p>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`/api/library-items/${editingItem.id}/image`}
-                    alt="Current"
-                    className="mt-1 max-h-48 w-auto border border-border object-contain"
-                  />
-                </div>
-              ) : null}
+              {composerType === "image" && (
+                <>
+                  <div className="grid gap-2 text-sm font-medium lg:col-span-2">
+                    <span>Image (optional)</span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border border-border bg-white px-4 py-3 font-medium hover:bg-surface"
+                      >
+                        Choose file
+                      </button>
+                      <span className="truncate text-sm text-muted">
+                        {imageFile?.fileName ??
+                          (editingItem?.imageMimeType
+                            ? "Current image on file"
+                            : "No file chosen")}
+                      </span>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
+                  </div>
+                  {imageError ? (
+                    <p className="text-sm text-red-600 lg:col-span-2">{imageError}</p>
+                  ) : null}
+                  {imageFile ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={imageFile.dataUrl}
+                      alt="Selected preview"
+                      className="max-h-48 w-auto border border-border object-contain lg:col-span-2"
+                    />
+                  ) : editingItem?.imageMimeType ? (
+                    <div className="lg:col-span-2">
+                      <p className="text-xs text-muted">
+                        Current image — choose a new file to replace it
+                      </p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/library-items/${editingItem.id}/image`}
+                        alt="Current"
+                        className="mt-1 max-h-48 w-auto border border-border object-contain"
+                      />
+                    </div>
+                  ) : null}
+                </>
+              )}
               <label className="grid gap-2 text-sm font-medium lg:col-span-2">
                 Description
                 <textarea
                   name="description"
-                  required={!imageFile && !editingItem?.imageMimeType}
+                  required={
+                    !(composerType === "image" && (imageFile || editingItem?.imageMimeType))
+                  }
                   rows={4}
                   defaultValue={editingItem?.description}
                   className="resize-y border border-border bg-white px-4 py-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
@@ -648,6 +680,7 @@ export function LibraryDashboard() {
                   onClick={() => {
                     setIsComposerOpen(false);
                     setEditingItem(null);
+                    setComposerType("note");
                     setImageFile(null);
                     setImageError(null);
                   }}
