@@ -676,15 +676,16 @@ export function LibraryDashboard() {
               </p>
 
               {visibleItems.length > 0 ? (
-                <div className="mt-5 grid items-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="mt-5 columns-1 gap-5 sm:columns-2 xl:columns-3">
                   {visibleItems.map((item) => (
-                    <LibraryCard
-                      key={item.id}
-                      item={item}
-                      onEdit={handleEdit}
-                      onDelete={(id) => void handleDelete(id)}
-                      isDeleting={deletingId === item.id}
-                    />
+                    <div key={item.id} className="mb-5 break-inside-avoid">
+                      <LibraryCard
+                        item={item}
+                        onEdit={handleEdit}
+                        onDelete={(id) => void handleDelete(id)}
+                        isDeleting={deletingId === item.id}
+                      />
+                    </div>
                   ))}
                 </div>
               ) : (
