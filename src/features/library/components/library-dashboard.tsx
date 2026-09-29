@@ -66,44 +66,40 @@ const RELEVANT_SIMILARITY_THRESHOLD = 0.62;
 
 function LibraryCard({ item, onEdit, onDelete, isDeleting }: LibraryCardProps) {
   return (
-    <article className="flex flex-col border border-border bg-white/70 p-5 transition-transform hover:-translate-y-1">
-      {item.imageMimeType ? (
-        <div className="-mx-5 -mt-5 mb-4 flex max-h-72 items-center justify-center bg-surface">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+    <article className="flex h-full flex-col bg-white/70 p-4 transition-transform hover:-translate-y-1">
+      <p className="text-xs uppercase tracking-widest text-muted">
+        {typeLabels[item.type]}
+      </p>
+      <div
+        className={`mt-3 flex aspect-video items-start justify-end overflow-hidden p-4 ${item.imageMimeType ? "bg-surface" : typeStyles[item.type]}`}
+      >
+        {item.imageMimeType ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={`/api/library-items/${item.id}/image`}
             alt=""
-            className="max-h-72 w-full object-contain"
+            className="h-full w-full object-contain"
           />
-        </div>
-      ) : null}
-      <div className="flex items-center gap-2">
-        <span
-          className={`px-2 py-1 text-xs uppercase tracking-widest ${typeStyles[item.type]}`}
-        >
-          {typeLabels[item.type]}
-        </span>
-        {!item.imageMimeType && (
-          <span aria-hidden="true" className="font-display text-lg text-muted">
+        ) : (
+          <span aria-hidden="true" className="font-display text-4xl">
             {typeIcon[item.type]}
           </span>
         )}
       </div>
-      <h3 className="mt-3 font-display text-2xl">{item.title}</h3>
-      <p className="mt-2 text-sm leading-6 text-muted">{item.description}</p>
+      <h3 className="mt-4 font-display text-xl">{item.title}</h3>
+      <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted">
+        {item.description}
+      </p>
       {item.tags.length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-2">
           {item.tags.map((tag) => (
-            <li
-              key={tag}
-              className="bg-surface px-2 py-1 text-xs text-muted"
-            >
+            <li key={tag} className="bg-surface px-2 py-1 text-xs text-muted">
               {tag}
             </li>
           ))}
         </ul>
       )}
-      <div className="mt-auto flex items-center justify-between gap-3 pt-6 text-xs text-muted">
+      <div className="mt-auto flex items-center justify-between gap-3 pt-4 text-xs text-muted">
         {item.source ? (
           <a
             href={item.source}
@@ -483,18 +479,27 @@ export function LibraryDashboard() {
 
       <main className="min-w-0 flex-1 px-5 py-8 sm:px-8 sm:py-12">
         <div className="mx-auto max-w-6xl">
-        <div>
-          <p className="flex items-center gap-3 text-xs uppercase tracking-widest text-primary">
-            <span aria-hidden="true" className="size-2 rounded-full bg-primary" />
-            {getGreeting()}
-            {user ? `, ${user.name.split(" ")[0]}` : ""}
-          </p>
-          <h1 className="mt-3 font-display text-4xl sm:text-5xl">
-            What you saved
-          </h1>
-          <p className="mt-3 max-w-xl leading-7 text-muted">
-            Collect what catches your attention, find it again when you need it.
-          </p>
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="flex items-center gap-3 text-xs uppercase tracking-widest text-primary">
+              <span aria-hidden="true" className="size-2 rounded-full bg-primary" />
+              {getGreeting()}
+              {user ? `, ${user.name.split(" ")[0]}` : ""}
+            </p>
+            <h1 className="mt-3 font-display text-4xl sm:text-5xl">
+              What do you want to remember today?
+            </h1>
+          </div>
+          <label className="relative block shrink-0 sm:w-72">
+            <span className="sr-only">Search your library</span>
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search your library"
+              className="min-h-12 w-full border border-border bg-background px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </label>
         </div>
 
         <section
@@ -744,34 +749,22 @@ export function LibraryDashboard() {
           <h2 id="library-results-title" className="sr-only">
             Results
           </h2>
-          <div className="flex flex-col gap-5 border-b border-border pb-5 md:flex-row md:items-center md:justify-between">
-            <div
-              role="group"
-              className="flex gap-5 overflow-x-auto"
-              aria-label="Filter by type"
-            >
-              {filterOptions.map((filter) => (
-                <button
-                  key={filter.value}
-                  type="button"
-                  aria-pressed={activeFilter === filter.value}
-                  onClick={() => setActiveFilter(filter.value)}
-                  className={`shrink-0 pb-2 text-sm transition-colors ${activeFilter === filter.value ? "border-b-2 border-foreground text-foreground" : "text-muted hover:text-foreground"}`}
-                >
-                  {filter.label} {filterCounts[filter.value]}
-                </button>
-              ))}
-            </div>
-            <label className="relative block md:w-80">
-              <span className="sr-only">Search your library</span>
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search your library"
-                className="min-h-12 w-full border border-border bg-background px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </label>
+          <div
+            role="group"
+            className="flex gap-6 overflow-x-auto border-b border-border pb-3 text-sm text-muted"
+            aria-label="Filter by type"
+          >
+            {filterOptions.map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                aria-pressed={activeFilter === filter.value}
+                onClick={() => setActiveFilter(filter.value)}
+                className={`shrink-0 pb-2 transition-colors ${activeFilter === filter.value ? "border-b-2 border-foreground text-foreground" : "hover:text-foreground"}`}
+              >
+                {filter.label} {filterCounts[filter.value]}
+              </button>
+            ))}
           </div>
 
           {isLoading ? (
@@ -787,16 +780,15 @@ export function LibraryDashboard() {
               </p>
 
               {visibleItems.length > 0 ? (
-                <div className="mt-5 columns-1 gap-5 sm:columns-2 xl:columns-3">
+                <div className="mt-5 grid items-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
                   {visibleItems.map((item) => (
-                    <div key={item.id} className="mb-5 break-inside-avoid">
-                      <LibraryCard
-                        item={item}
-                        onEdit={handleEdit}
-                        onDelete={(id) => void handleDelete(id)}
-                        isDeleting={deletingId === item.id}
-                      />
-                    </div>
+                    <LibraryCard
+                      key={item.id}
+                      item={item}
+                      onEdit={handleEdit}
+                      onDelete={(id) => void handleDelete(id)}
+                      isDeleting={deletingId === item.id}
+                    />
                   ))}
                 </div>
               ) : (
