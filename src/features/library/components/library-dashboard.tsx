@@ -676,7 +676,7 @@ export function LibraryDashboard() {
               </p>
 
               {visibleItems.length > 0 ? (
-                <div className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="mt-5 grid items-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
                   {visibleItems.map((item) => (
                     <LibraryCard
                       key={item.id}
