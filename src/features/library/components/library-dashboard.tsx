@@ -421,64 +421,66 @@ export function LibraryDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-surface text-foreground">
-      <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
-          <Link
-            href="/"
-            aria-label="Unlost home"
-            className="text-xl font-semibold tracking-tight"
+    <div className="flex min-h-screen bg-surface text-foreground">
+      <aside
+        aria-label="Unlost menu"
+        className="sticky top-0 flex h-screen w-16 shrink-0 flex-col items-center bg-sidebar py-5 text-white sm:w-20"
+      >
+        <Link
+          href="/"
+          aria-label="Unlost home"
+          className="font-display text-2xl italic"
+        >
+          u.
+        </Link>
+        <button
+          type="button"
+          aria-expanded={isComposerOpen}
+          aria-controls="capture-composer"
+          title="New item"
+          onClick={() => {
+            setEditingItem(null);
+            setComposerType("note");
+            setImageFile(null);
+            setImageError(null);
+            setIsComposerOpen((isOpen) => !isOpen);
+          }}
+          className="mt-10 flex size-11 items-center justify-center bg-accent text-xl text-foreground transition-transform hover:-translate-y-0.5"
+        >
+          {isComposerOpen ? "×" : "+"}
+        </button>
+        <div className="mt-auto flex flex-col items-center gap-3">
+          <span
+            title={user?.name}
+            className="flex size-9 items-center justify-center rounded-full bg-primary text-xs"
           >
-            unlost<span className="text-primary">.</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-muted sm:inline">
-              {user?.name ?? ""}
-            </span>
-            <span className="flex size-10 items-center justify-center rounded-full bg-primary text-xs text-white">
-              {user ? getInitials(user.name) : ""}
-            </span>
-            <button
-              type="button"
-              onClick={() => void handleSignOut()}
-              className="text-sm font-medium text-muted hover:text-foreground"
-            >
-              Sign out
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-12">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="flex items-center gap-3 text-xs uppercase tracking-widest text-primary">
-              <span aria-hidden="true" className="size-2 rounded-full bg-primary" />
-              {getGreeting()}
-              {user ? `, ${user.name.split(" ")[0]}` : ""}
-            </p>
-            <h1 className="mt-3 font-display text-4xl sm:text-5xl">
-              What you saved
-            </h1>
-            <p className="mt-3 max-w-xl leading-7 text-muted">
-              Collect what catches your attention, find it again when you need it.
-            </p>
-          </div>
+            {user ? getInitials(user.name) : ""}
+          </span>
           <button
             type="button"
-            aria-expanded={isComposerOpen}
-            aria-controls="capture-composer"
-            onClick={() => {
-              setEditingItem(null);
-              setComposerType("note");
-              setImageFile(null);
-              setImageError(null);
-              setIsComposerOpen((isOpen) => !isOpen);
-            }}
-            className="self-start bg-accent px-6 py-4 font-medium transition-transform hover:-translate-y-0.5 lg:self-auto"
+            title="Sign out"
+            onClick={() => void handleSignOut()}
+            className="text-xs text-white/60 hover:text-white"
           >
-            {isComposerOpen ? "Close form" : "+ New item"}
+            Exit
           </button>
+        </div>
+      </aside>
+
+      <main className="min-w-0 flex-1 px-5 py-8 sm:px-8 sm:py-12">
+        <div className="mx-auto max-w-6xl">
+        <div>
+          <p className="flex items-center gap-3 text-xs uppercase tracking-widest text-primary">
+            <span aria-hidden="true" className="size-2 rounded-full bg-primary" />
+            {getGreeting()}
+            {user ? `, ${user.name.split(" ")[0]}` : ""}
+          </p>
+          <h1 className="mt-3 font-display text-4xl sm:text-5xl">
+            What you saved
+          </h1>
+          <p className="mt-3 max-w-xl leading-7 text-muted">
+            Collect what catches your attention, find it again when you need it.
+          </p>
         </div>
 
         <section
@@ -794,6 +796,7 @@ export function LibraryDashboard() {
             </>
           )}
         </section>
+        </div>
       </main>
     </div>
   );
