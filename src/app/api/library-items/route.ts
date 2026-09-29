@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getRequestUser } from "@/lib/auth";
 import { enrichLibraryItem } from "@/lib/library-enrichment";
+import { isSafeHttpUrl } from "@/lib/safe-url";
 
 const captureTypes = ["link", "note", "image"] as const;
 
@@ -62,13 +63,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Invalid capture type" }, { status: 400 });
   }
 
+  const source = body.source?.trim() ?? "";
+
+  if (source && !isSafeHttpUrl(source)) {
+    return NextResponse.json(
+      { message: "Link must be a valid http(s) URL" },
+      { status: 400 },
+    );
+  }
+
   const item = await prisma.libraryItem.create({
     data: {
       ownerId: user.id,
       type: body.type ?? "note",
       title: body.title.trim(),
       description: body.description?.trim() ?? "",
-      source: body.source?.trim() ?? "",
+      source,
     },
     select: itemSelect,
   });

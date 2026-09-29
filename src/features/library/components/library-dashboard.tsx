@@ -82,7 +82,18 @@ function LibraryCard({ item, onEdit, onDelete, isDeleting }: LibraryCardProps) {
         </ul>
       )}
       <div className="mt-auto flex items-center justify-between gap-3 pt-6 text-xs text-muted">
-        <span className="truncate">{item.source}</span>
+        {item.source ? (
+          <a
+            href={item.source}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="truncate underline hover:text-foreground"
+          >
+            {item.source}
+          </a>
+        ) : (
+          <span className="truncate" />
+        )}
         <span className="shrink-0">{formatRelativeTime(item.updatedAt)}</span>
       </div>
       <div className="mt-3 flex gap-4 border-t border-border pt-3 text-xs">
@@ -204,6 +215,7 @@ export function LibraryDashboard() {
     const formData = new FormData(form);
     const title = String(formData.get("title") ?? "").trim();
     const description = String(formData.get("description") ?? "").trim();
+    const source = String(formData.get("source") ?? "").trim();
     const rawType = String(formData.get("type") ?? "note");
     const type: CaptureType = isCaptureType(rawType) ? rawType : "note";
 
@@ -216,7 +228,7 @@ export function LibraryDashboard() {
       if (editingItem) {
         const { item } = await apiPatch<{ item: LibraryItem }>(
           `/api/library-items/${editingItem.id}`,
-          { type, title, description },
+          { type, title, description, source },
         );
         setItems((currentItems) =>
           currentItems.map((current) => (current.id === item.id ? item : current)),
@@ -224,7 +236,7 @@ export function LibraryDashboard() {
       } else {
         const { item } = await apiPost<{ item: LibraryItem }>(
           "/api/library-items",
-          { type, title, description },
+          { type, title, description, source },
         );
         setItems((currentItems) => [item, ...currentItems]);
       }
@@ -448,6 +460,16 @@ export function LibraryDashboard() {
                   <option value="link">Link</option>
                   <option value="image">Image</option>
                 </select>
+              </label>
+              <label className="grid gap-2 text-sm font-medium lg:col-span-2">
+                Link (optional)
+                <input
+                  name="source"
+                  type="url"
+                  defaultValue={editingItem?.source}
+                  className="min-h-12 border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="https://..."
+                />
               </label>
               <label className="grid gap-2 text-sm font-medium lg:col-span-2">
                 Description
