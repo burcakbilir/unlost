@@ -154,6 +154,13 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 export function LibraryDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<CurrentUser | null>(null);
@@ -216,6 +223,15 @@ export function LibraryDashboard() {
       isMounted = false;
     };
   }, []);
+
+  const filterCounts = useMemo(() => {
+    return {
+      all: items.length,
+      link: items.filter((item) => item.type === "link").length,
+      note: items.filter((item) => item.type === "note").length,
+      image: items.filter((item) => item.type === "image").length,
+    };
+  }, [items]);
 
   const visibleItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -406,7 +422,7 @@ export function LibraryDashboard() {
 
   return (
     <div className="min-h-screen bg-surface text-foreground">
-      <header className="border-b border-border bg-background">
+      <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
           <Link
             href="/"
@@ -436,8 +452,10 @@ export function LibraryDashboard() {
       <main className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-12">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-widest text-primary">
-              Personal library
+            <p className="flex items-center gap-3 text-xs uppercase tracking-widest text-primary">
+              <span aria-hidden="true" className="size-2 rounded-full bg-primary" />
+              {getGreeting()}
+              {user ? `, ${user.name.split(" ")[0]}` : ""}
             </p>
             <h1 className="mt-3 font-display text-4xl sm:text-5xl">
               What you saved
@@ -465,14 +483,27 @@ export function LibraryDashboard() {
 
         <section
           aria-labelledby="ask-library-title"
-          className="mt-8 border border-border bg-background p-5 sm:p-8"
+          className="mt-8 bg-sidebar p-5 text-white sm:p-8"
         >
-          <h2 id="ask-library-title" className="font-display text-2xl">
-            Ask your library
-          </h2>
+          <div className="flex items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary"
+            >
+              ✦
+            </span>
+            <div>
+              <p className="text-xs uppercase tracking-widest text-white/60">
+                Ask, don&rsquo;t scroll
+              </p>
+              <h2 id="ask-library-title" className="font-display text-2xl">
+                Ask your library
+              </h2>
+            </div>
+          </div>
           <form
             onSubmit={(event) => void handleAsk(event)}
-            className="mt-4 flex flex-col gap-3 sm:flex-row"
+            className="mt-5 flex flex-col gap-3 sm:flex-row"
           >
             <label className="flex-1">
               <span className="sr-only">Ask a question about what you saved</span>
@@ -489,20 +520,20 @@ export function LibraryDashboard() {
                   }
                 }}
                 placeholder="What did I save about..."
-                className="min-h-12 w-full border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                className="min-h-12 w-full border border-white/20 bg-white px-4 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </label>
             <button
               type="submit"
               disabled={isAsking || !askQuery.trim()}
-              className="bg-foreground px-6 py-3 text-white disabled:opacity-60"
+              className="bg-accent px-6 py-3 font-medium text-foreground transition-transform hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
             >
               {isAsking ? "Thinking..." : "Ask"}
             </button>
           </form>
 
           {askError ? (
-            <p className="mt-4 text-sm text-red-600">{askError}</p>
+            <p className="mt-4 text-sm text-red-300">{askError}</p>
           ) : null}
 
           {askAnswer ? (
@@ -513,7 +544,7 @@ export function LibraryDashboard() {
                   {citedMatches.map(({ match, citation }) => (
                     <li
                       key={match.id}
-                      className="border border-border bg-white/60 p-3 text-sm"
+                      className="border border-white/20 bg-white/95 p-3 text-sm text-foreground"
                     >
                       <p className="text-xs text-muted">[{citation}]</p>
                       {match.imageMimeType && (
@@ -711,7 +742,7 @@ export function LibraryDashboard() {
                   onClick={() => setActiveFilter(filter.value)}
                   className={`shrink-0 pb-2 text-sm transition-colors ${activeFilter === filter.value ? "border-b-2 border-foreground text-foreground" : "text-muted hover:text-foreground"}`}
                 >
-                  {filter.label}
+                  {filter.label} {filterCounts[filter.value]}
                 </button>
               ))}
             </div>
