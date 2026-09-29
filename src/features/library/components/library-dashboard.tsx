@@ -59,28 +59,30 @@ const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 
 function LibraryCard({ item, onEdit, onDelete, isDeleting }: LibraryCardProps) {
   return (
-    <article className="flex min-h-72 flex-col border border-border bg-white/70 p-5 transition-transform hover:-translate-y-1">
-      <div
-        className={`relative flex aspect-video items-start justify-between overflow-hidden p-4 ${item.imageMimeType ? "bg-surface" : typeStyles[item.type]}`}
-      >
-        {item.imageMimeType && (
-          // eslint-disable-next-line @next/next/no-img-element
+    <article className="flex flex-col border border-border bg-white/70 p-5 transition-transform hover:-translate-y-1">
+      {item.imageMimeType ? (
+        <div className="-mx-5 -mt-5 mb-4 flex max-h-72 items-center justify-center bg-surface">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`/api/library-items/${item.id}/image`}
             alt=""
-            className="absolute inset-0 h-full w-full object-cover"
+            className="max-h-72 w-full object-contain"
           />
-        )}
-        <span className="relative z-10 bg-white/80 px-2 py-1 text-xs uppercase tracking-widest">
+        </div>
+      ) : null}
+      <div className="flex items-center gap-2">
+        <span
+          className={`px-2 py-1 text-xs uppercase tracking-widest ${typeStyles[item.type]}`}
+        >
           {typeLabels[item.type]}
         </span>
         {!item.imageMimeType && (
-          <span aria-hidden="true" className="font-display text-3xl">
+          <span aria-hidden="true" className="font-display text-lg text-muted">
             {typeIcon[item.type]}
           </span>
         )}
       </div>
-      <h3 className="mt-5 font-display text-2xl">{item.title}</h3>
+      <h3 className="mt-3 font-display text-2xl">{item.title}</h3>
       <p className="mt-2 text-sm leading-6 text-muted">{item.description}</p>
       {item.tags.length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-2">
