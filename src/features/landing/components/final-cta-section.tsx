@@ -14,12 +14,21 @@ export function FinalCtaSection() {
           Stop losing track of the things on your mind.
         </h2>
         <Link
-          href="/dashboard"
+          href={isAuthenticated ? "/dashboard" : "/register"}
           className="mt-10 inline-block bg-accent px-7 py-4 font-medium transition-transform hover:-translate-y-0.5"
         >
           {isAuthenticated ? "Go to dashboard" : "Start for free"}{" "}
           <span aria-hidden="true">→</span>
         </Link>
+
+        {isAuthenticated ? null : (
+          <p className="mt-4 text-sm text-muted">
+            Already have an account?{" "}
+            <Link href="/login" className="font-semibold text-primary">
+              Log in
+            </Link>
+          </p>
+        )}
       </div>
     </section>
   );

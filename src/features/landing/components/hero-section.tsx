@@ -1,6 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { useIsAuthenticated } from "@/features/landing/hooks/use-is-authenticated";
 
 export function HeroSection() {
+  const isAuthenticated = useIsAuthenticated();
+
   return (
     <section id="top" aria-labelledby="hero-title" className="scroll-mt-24">
       <div className="mx-auto max-w-6xl px-6 pb-16 pt-16 sm:pt-20 lg:pb-20 lg:pt-24">
@@ -23,10 +28,11 @@ export function HeroSection() {
           </p>
           <div className="mt-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
             <Link
-              href="/dashboard"
+              href={isAuthenticated ? "/dashboard" : "/register"}
               className="bg-accent px-6 py-4 font-medium transition-transform hover:-translate-y-0.5"
             >
-              Save your first item <span aria-hidden="true">→</span>
+              {isAuthenticated ? "Go to your library" : "Save your first item"}{" "}
+              <span aria-hidden="true">→</span>
             </Link>
             <span className="text-xs text-muted">Free · No credit card required</span>
           </div>

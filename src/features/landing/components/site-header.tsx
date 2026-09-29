@@ -19,12 +19,26 @@ export function SiteHeader() {
           <a href="#product-preview" className="hidden transition-colors hover:text-primary md:block">
             Explore the product
           </a>
-          <Link
-            href="/dashboard"
-            className="bg-foreground px-4 py-3 text-white transition-transform hover:-translate-y-0.5 sm:px-5"
-          >
-            {isAuthenticated ? "Go to dashboard" : "Start for free"}
-          </Link>
+          {isAuthenticated ? (
+            <Link
+              href="/dashboard"
+              className="bg-foreground px-4 py-3 text-white transition-transform hover:-translate-y-0.5 sm:px-5"
+            >
+              Go to dashboard
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" className="hidden transition-colors hover:text-primary sm:block">
+                Log in
+              </Link>
+              <Link
+                href="/register"
+                className="bg-foreground px-4 py-3 text-white transition-transform hover:-translate-y-0.5 sm:px-5"
+              >
+                Start for free
+              </Link>
+            </>
+          )}
         </nav>
       </div>
     </header>
