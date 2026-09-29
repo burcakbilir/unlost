@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { apiGet, apiPost } from "@/lib/api-client";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import type {
   CaptureType,
@@ -15,6 +15,9 @@ import type {
 
 type LibraryCardProps = {
   item: LibraryItem;
+  onEdit: (item: LibraryItem) => void;
+  onDelete: (id: string) => void;
+  isDeleting: boolean;
 };
 
 type FilterOption = {
@@ -51,7 +54,7 @@ function isCaptureType(value: string): value is CaptureType {
   return value === "link" || value === "note" || value === "image";
 }
 
-function LibraryCard({ item }: LibraryCardProps) {
+function LibraryCard({ item, onEdit, onDelete, isDeleting }: LibraryCardProps) {
   return (
     <article className="flex min-h-72 flex-col border border-border bg-white/70 p-5 transition-transform hover:-translate-y-1">
       <div
@@ -82,6 +85,23 @@ function LibraryCard({ item }: LibraryCardProps) {
         <span className="truncate">{item.source}</span>
         <span className="shrink-0">{formatRelativeTime(item.updatedAt)}</span>
       </div>
+      <div className="mt-3 flex gap-4 border-t border-border pt-3 text-xs">
+        <button
+          type="button"
+          onClick={() => onEdit(item)}
+          className="font-medium text-muted hover:text-foreground"
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete(item.id)}
+          disabled={isDeleting}
+          className="font-medium text-muted hover:text-red-600 disabled:opacity-60"
+        >
+          {isDeleting ? "Deleting..." : "Delete"}
+        </button>
+      </div>
     </article>
   );
 }
@@ -108,10 +128,13 @@ export function LibraryDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<LibraryFilter>("all");
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<LibraryItem | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [askQuery, setAskQuery] = useState("");
   const [askAnswer, setAskAnswer] = useState<string | null>(null);
   const [askMatches, setAskMatches] = useState<SearchMatch[]>([]);
@@ -152,21 +175,28 @@ export function LibraryDashboard() {
     };
   }, []);
 
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    items.forEach((item) => item.tags.forEach((tag) => tagSet.add(tag)));
+    return Array.from(tagSet).sort();
+  }, [items]);
+
   const visibleItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
     return items.filter((item) => {
       const matchesFilter =
         activeFilter === "all" || item.type === activeFilter;
+      const matchesTag = !activeTag || item.tags.includes(activeTag);
       const matchesQuery =
         normalizedQuery.length === 0 ||
         `${item.title} ${item.description} ${item.source}`
           .toLowerCase()
           .includes(normalizedQuery);
 
-      return matchesFilter && matchesQuery;
+      return matchesFilter && matchesTag && matchesQuery;
     });
-  }, [activeFilter, items, query]);
+  }, [activeFilter, activeTag, items, query]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -183,21 +213,55 @@ export function LibraryDashboard() {
     setSaveError(null);
 
     try {
-      const { item } = await apiPost<{ item: LibraryItem }>(
-        "/api/library-items",
-        { type, title, description },
-      );
+      if (editingItem) {
+        const { item } = await apiPatch<{ item: LibraryItem }>(
+          `/api/library-items/${editingItem.id}`,
+          { type, title, description },
+        );
+        setItems((currentItems) =>
+          currentItems.map((current) => (current.id === item.id ? item : current)),
+        );
+      } else {
+        const { item } = await apiPost<{ item: LibraryItem }>(
+          "/api/library-items",
+          { type, title, description },
+        );
+        setItems((currentItems) => [item, ...currentItems]);
+      }
 
-      setItems((currentItems) => [item, ...currentItems]);
       form.reset();
       setActiveFilter("all");
       setIsComposerOpen(false);
+      setEditingItem(null);
     } catch (error) {
       setSaveError(
         error instanceof Error ? error.message : "Could not save this item",
       );
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  function handleEdit(item: LibraryItem) {
+    setEditingItem(item);
+    setSaveError(null);
+    setIsComposerOpen(true);
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm("Delete this item? This can't be undone.")) return;
+
+    setDeletingId(id);
+
+    try {
+      await apiDelete(`/api/library-items/${id}`);
+      setItems((currentItems) => currentItems.filter((item) => item.id !== id));
+    } catch (error) {
+      window.alert(
+        error instanceof Error ? error.message : "Could not delete this item",
+      );
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -279,7 +343,15 @@ export function LibraryDashboard() {
             type="button"
             aria-expanded={isComposerOpen}
             aria-controls="capture-composer"
-            onClick={() => setIsComposerOpen((isOpen) => !isOpen)}
+            onClick={() => {
+              if (isComposerOpen) {
+                setIsComposerOpen(false);
+                setEditingItem(null);
+              } else {
+                setEditingItem(null);
+                setIsComposerOpen(true);
+              }
+            }}
             className="self-start bg-accent px-6 py-4 font-medium transition-transform hover:-translate-y-0.5 lg:self-auto"
           >
             {isComposerOpen ? "Close form" : "+ New item"}
@@ -348,9 +420,10 @@ export function LibraryDashboard() {
             className="mt-8 border border-border bg-background p-5 sm:p-8"
           >
             <h2 id="capture-composer-title" className="font-display text-3xl">
-              Save something new
+              {editingItem ? "Edit item" : "Save something new"}
             </h2>
             <form
+              key={editingItem?.id ?? "new"}
               onSubmit={(event) => void handleSubmit(event)}
               className="mt-6 grid gap-5 lg:grid-cols-2"
             >
@@ -359,6 +432,7 @@ export function LibraryDashboard() {
                 <input
                   name="title"
                   required
+                  defaultValue={editingItem?.title}
                   className="min-h-12 border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="What do you want to remember?"
                 />
@@ -368,7 +442,7 @@ export function LibraryDashboard() {
                 <select
                   name="type"
                   className="min-h-12 border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
-                  defaultValue="note"
+                  defaultValue={editingItem?.type ?? "note"}
                 >
                   <option value="note">Note</option>
                   <option value="link">Link</option>
@@ -381,6 +455,7 @@ export function LibraryDashboard() {
                   name="description"
                   required
                   rows={4}
+                  defaultValue={editingItem?.description}
                   className="resize-y border border-border bg-white px-4 py-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="Why do you want to keep this?"
                 />
@@ -396,11 +471,14 @@ export function LibraryDashboard() {
                   disabled={isSaving}
                   className="bg-foreground px-6 py-3 text-white disabled:opacity-60"
                 >
-                  {isSaving ? "Saving..." : "Save"}
+                  {isSaving ? "Saving..." : editingItem ? "Update" : "Save"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsComposerOpen(false)}
+                  onClick={() => {
+                    setIsComposerOpen(false);
+                    setEditingItem(null);
+                  }}
                   className="border border-border px-6 py-3"
                 >
                   Cancel
@@ -444,6 +522,28 @@ export function LibraryDashboard() {
             </label>
           </div>
 
+          {allTags.length > 0 && (
+            <div
+              role="group"
+              aria-label="Filter by tag"
+              className="mt-5 flex flex-wrap gap-2"
+            >
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  aria-pressed={activeTag === tag}
+                  onClick={() =>
+                    setActiveTag((current) => (current === tag ? null : tag))
+                  }
+                  className={`px-2 py-1 text-xs transition-colors ${activeTag === tag ? "bg-foreground text-white" : "bg-surface text-muted hover:text-foreground"}`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          )}
+
           {isLoading ? (
             <p className="mt-5 text-sm text-muted">Loading your library...</p>
           ) : loadError ? (
@@ -459,7 +559,13 @@ export function LibraryDashboard() {
               {visibleItems.length > 0 ? (
                 <div className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                   {visibleItems.map((item) => (
-                    <LibraryCard key={item.id} item={item} />
+                    <LibraryCard
+                      key={item.id}
+                      item={item}
+                      onEdit={handleEdit}
+                      onDelete={(id) => void handleDelete(id)}
+                      isDeleting={deletingId === item.id}
+                    />
                   ))}
                 </div>
               ) : (
