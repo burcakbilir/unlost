@@ -32,6 +32,7 @@ model LibraryItem {
 
   imageData     Bytes?
   imageMimeType String?
+  imageCaption  String?
 
   embedding Unsupported("vector(768)")?
 

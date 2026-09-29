@@ -12,27 +12,36 @@ export async function enrichLibraryItem(
   description: string,
   image?: ImageInput | null,
 ): Promise<void> {
-  let finalDescription = description;
+  let imageCaption: string | null = null;
 
-  if (image && !description.trim()) {
+  if (image) {
     try {
-      finalDescription = await describeImage(image.data, image.mimeType);
+      imageCaption = await describeImage(image.data, image.mimeType);
       await prisma.libraryItem.update({
         where: { id },
-        data: { description: finalDescription },
+        data: { imageCaption },
       });
     } catch (error) {
       console.error(`Failed to describe image for library item ${id}:`, error);
     }
+  } else {
+    const existing = await prisma.libraryItem.findUnique({
+      where: { id },
+      select: { imageCaption: true },
+    });
+    imageCaption = existing?.imageCaption ?? null;
   }
 
-  const content = `${title}\n${finalDescription}`.trim();
+  // imageCaption is never shown to the user — it only feeds search/tagging,
+  // so the visible `description` stays exactly what the user typed (or empty).
+  const searchableText = [description, imageCaption].filter(Boolean).join("\n");
+  const content = `${title}\n${searchableText}`.trim();
 
   if (!content) return;
 
   const [embedding, tags] = await Promise.allSettled([
     embedText(content, "RETRIEVAL_DOCUMENT"),
-    suggestTags(title, finalDescription),
+    suggestTags(title, searchableText),
   ]);
 
   const vectorLiteral =

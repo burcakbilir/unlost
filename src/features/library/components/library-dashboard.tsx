@@ -152,7 +152,6 @@ export function LibraryDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<LibraryFilter>("all");
-  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<LibraryItem | null>(null);
@@ -205,28 +204,21 @@ export function LibraryDashboard() {
     };
   }, []);
 
-  const allTags = useMemo(() => {
-    const tagSet = new Set<string>();
-    items.forEach((item) => item.tags.forEach((tag) => tagSet.add(tag)));
-    return Array.from(tagSet).sort();
-  }, [items]);
-
   const visibleItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
     return items.filter((item) => {
       const matchesFilter =
         activeFilter === "all" || item.type === activeFilter;
-      const matchesTag = !activeTag || item.tags.includes(activeTag);
       const matchesQuery =
         normalizedQuery.length === 0 ||
         `${item.title} ${item.description} ${item.source}`
           .toLowerCase()
           .includes(normalizedQuery);
 
-      return matchesFilter && matchesTag && matchesQuery;
+      return matchesFilter && matchesQuery;
     });
-  }, [activeFilter, activeTag, items, query]);
+  }, [activeFilter, items, query]);
 
   function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -636,28 +628,6 @@ export function LibraryDashboard() {
               />
             </label>
           </div>
-
-          {allTags.length > 0 && (
-            <div
-              role="group"
-              aria-label="Filter by tag"
-              className="mt-5 flex flex-wrap gap-2"
-            >
-              {allTags.map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  aria-pressed={activeTag === tag}
-                  onClick={() =>
-                    setActiveTag((current) => (current === tag ? null : tag))
-                  }
-                  className={`px-2 py-1 text-xs transition-colors ${activeTag === tag ? "bg-foreground text-white" : "bg-surface text-muted hover:text-foreground"}`}
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
-          )}
 
           {isLoading ? (
             <p className="mt-5 text-sm text-muted">Loading your library...</p>

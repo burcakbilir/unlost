@@ -10,6 +10,7 @@ type MatchRow = {
   type: string;
   title: string;
   description: string;
+  imageCaption: string | null;
   source: string;
   tags: string[];
   updatedAt: Date;
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
   const vectorLiteral = toVectorLiteral(queryEmbedding);
 
   const matches = await prisma.$queryRaw<MatchRow[]>`
-    SELECT id, type, title, description, source, tags, "updatedAt",
+    SELECT id, type, title, description, "imageCaption", source, tags, "updatedAt",
            1 - (embedding <=> ${vectorLiteral}::vector) AS similarity
     FROM library_items
     WHERE "ownerId" = ${user.id} AND embedding IS NOT NULL
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
       matches.map((match) => ({
         id: match.id,
         title: match.title,
-        description: match.description,
+        description: [match.description, match.imageCaption].filter(Boolean).join("\n"),
         source: match.source,
       })),
     );
