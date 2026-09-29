@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { apiPost } from "@/lib/api-client";
+import { PasswordInput } from "@/features/auth/components/password-input";
 
 export default function LoginPage() {
   return (
@@ -69,8 +70,7 @@ function LoginForm() {
 
           <label className="grid gap-1.5 text-sm font-medium">
             Password
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
