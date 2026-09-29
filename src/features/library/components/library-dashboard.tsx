@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import type {
@@ -54,18 +54,31 @@ function isCaptureType(value: string): value is CaptureType {
   return value === "link" || value === "note" || value === "image";
 }
 
+const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+
 function LibraryCard({ item, onEdit, onDelete, isDeleting }: LibraryCardProps) {
   return (
     <article className="flex min-h-72 flex-col border border-border bg-white/70 p-5 transition-transform hover:-translate-y-1">
       <div
-        className={`flex aspect-video items-start justify-between p-4 ${typeStyles[item.type]}`}
+        className={`relative flex aspect-video items-start justify-between overflow-hidden p-4 ${item.imageMimeType ? "bg-surface" : typeStyles[item.type]}`}
       >
-        <span className="text-xs uppercase tracking-widest">
+        {item.imageMimeType && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/api/library-items/${item.id}/image`}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+        <span className="relative z-10 bg-white/80 px-2 py-1 text-xs uppercase tracking-widest">
           {typeLabels[item.type]}
         </span>
-        <span aria-hidden="true" className="font-display text-3xl">
-          {typeIcon[item.type]}
-        </span>
+        {!item.imageMimeType && (
+          <span aria-hidden="true" className="font-display text-3xl">
+            {typeIcon[item.type]}
+          </span>
+        )}
       </div>
       <h3 className="mt-5 font-display text-2xl">{item.title}</h3>
       <p className="mt-2 text-sm leading-6 text-muted">{item.description}</p>
@@ -146,6 +159,12 @@ export function LibraryDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<{
+    dataUrl: string;
+    base64: string;
+    mimeType: string;
+  } | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [askQuery, setAskQuery] = useState("");
   const [askAnswer, setAskAnswer] = useState<string | null>(null);
   const [askMatches, setAskMatches] = useState<SearchMatch[]>([]);
@@ -209,6 +228,39 @@ export function LibraryDashboard() {
     });
   }, [activeFilter, activeTag, items, query]);
 
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    setImageError(null);
+
+    if (!file) {
+      setImageFile(null);
+      return;
+    }
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setImageError("Image must be PNG, JPEG, or WebP");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageError("Image must be smaller than 3MB");
+      event.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(",")[1] ?? "";
+      setImageFile({ dataUrl, base64, mimeType: file.type });
+    };
+    reader.onerror = () => {
+      setImageError("Could not read this file");
+    };
+    reader.readAsDataURL(file);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -218,17 +270,22 @@ export function LibraryDashboard() {
     const source = String(formData.get("source") ?? "").trim();
     const rawType = String(formData.get("type") ?? "note");
     const type: CaptureType = isCaptureType(rawType) ? rawType : "note";
+    const hasImage = Boolean(imageFile) || Boolean(editingItem?.imageMimeType);
 
-    if (!title || !description) return;
+    if (!title || (!description && !hasImage)) return;
 
     setIsSaving(true);
     setSaveError(null);
+
+    const image = imageFile
+      ? { data: imageFile.base64, mimeType: imageFile.mimeType }
+      : undefined;
 
     try {
       if (editingItem) {
         const { item } = await apiPatch<{ item: LibraryItem }>(
           `/api/library-items/${editingItem.id}`,
-          { type, title, description, source },
+          { type, title, description, source, image },
         );
         setItems((currentItems) =>
           currentItems.map((current) => (current.id === item.id ? item : current)),
@@ -236,10 +293,13 @@ export function LibraryDashboard() {
       } else {
         const { item } = await apiPost<{ item: LibraryItem }>(
           "/api/library-items",
-          { type, title, description, source },
+          { type, title, description, source, image },
         );
         setItems((currentItems) => [item, ...currentItems]);
       }
+
+      setImageFile(null);
+      setImageError(null);
 
       form.reset();
       setActiveFilter("all");
@@ -257,6 +317,8 @@ export function LibraryDashboard() {
   function handleEdit(item: LibraryItem) {
     setEditingItem(item);
     setSaveError(null);
+    setImageFile(null);
+    setImageError(null);
     setIsComposerOpen(true);
   }
 
@@ -356,13 +418,10 @@ export function LibraryDashboard() {
             aria-expanded={isComposerOpen}
             aria-controls="capture-composer"
             onClick={() => {
-              if (isComposerOpen) {
-                setIsComposerOpen(false);
-                setEditingItem(null);
-              } else {
-                setEditingItem(null);
-                setIsComposerOpen(true);
-              }
+              setEditingItem(null);
+              setImageFile(null);
+              setImageError(null);
+              setIsComposerOpen((isOpen) => !isOpen);
             }}
             className="self-start bg-accent px-6 py-4 font-medium transition-transform hover:-translate-y-0.5 lg:self-auto"
           >
@@ -472,14 +531,46 @@ export function LibraryDashboard() {
                 />
               </label>
               <label className="grid gap-2 text-sm font-medium lg:col-span-2">
+                Image (optional)
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handleImageChange}
+                  className="min-h-12 border border-border bg-white px-4 py-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </label>
+              {imageError ? (
+                <p className="text-sm text-red-600 lg:col-span-2">{imageError}</p>
+              ) : null}
+              {imageFile ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={imageFile.dataUrl}
+                  alt="Selected preview"
+                  className="max-h-48 w-auto border border-border object-contain lg:col-span-2"
+                />
+              ) : editingItem?.imageMimeType ? (
+                <div className="lg:col-span-2">
+                  <p className="text-xs text-muted">
+                    Current image — choose a new file to replace it
+                  </p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/library-items/${editingItem.id}/image`}
+                    alt="Current"
+                    className="mt-1 max-h-48 w-auto border border-border object-contain"
+                  />
+                </div>
+              ) : null}
+              <label className="grid gap-2 text-sm font-medium lg:col-span-2">
                 Description
                 <textarea
                   name="description"
-                  required
+                  required={!imageFile && !editingItem?.imageMimeType}
                   rows={4}
                   defaultValue={editingItem?.description}
                   className="resize-y border border-border bg-white px-4 py-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="Why do you want to keep this?"
+                  placeholder="Why do you want to keep this? (leave blank to let AI describe the image)"
                 />
               </label>
 
@@ -500,6 +591,8 @@ export function LibraryDashboard() {
                   onClick={() => {
                     setIsComposerOpen(false);
                     setEditingItem(null);
+                    setImageFile(null);
+                    setImageError(null);
                   }}
                   className="border border-border px-6 py-3"
                 >

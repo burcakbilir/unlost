@@ -1,18 +1,38 @@
 import { prisma } from "@/lib/prisma";
-import { embedText, suggestTags, toVectorLiteral } from "@/lib/gemini";
+import { describeImage, embedText, suggestTags, toVectorLiteral } from "@/lib/gemini";
+
+type ImageInput = {
+  data: string;
+  mimeType: string;
+};
 
 export async function enrichLibraryItem(
   id: string,
   title: string,
   description: string,
+  image?: ImageInput | null,
 ): Promise<void> {
-  const content = `${title}\n${description}`.trim();
+  let finalDescription = description;
+
+  if (image && !description.trim()) {
+    try {
+      finalDescription = await describeImage(image.data, image.mimeType);
+      await prisma.libraryItem.update({
+        where: { id },
+        data: { description: finalDescription },
+      });
+    } catch (error) {
+      console.error(`Failed to describe image for library item ${id}:`, error);
+    }
+  }
+
+  const content = `${title}\n${finalDescription}`.trim();
 
   if (!content) return;
 
   const [embedding, tags] = await Promise.allSettled([
     embedText(content, "RETRIEVAL_DOCUMENT"),
-    suggestTags(title, description),
+    suggestTags(title, finalDescription),
   ]);
 
   const vectorLiteral =

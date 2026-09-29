@@ -7,6 +7,7 @@ export type LibraryItem = {
   description: string;
   source: string;
   tags: string[];
+  imageMimeType: string | null;
   createdAt: string;
   updatedAt: string;
 };

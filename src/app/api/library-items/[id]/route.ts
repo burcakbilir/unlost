@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getRequestUser } from "@/lib/auth";
 import { enrichLibraryItem } from "@/lib/library-enrichment";
 import { isSafeHttpUrl } from "@/lib/safe-url";
+import { validateImageUpload } from "@/lib/image-upload";
 
 const captureTypes = ["link", "note", "image"] as const;
 
@@ -19,6 +20,7 @@ const itemSelect = {
   description: true,
   source: true,
   tags: true,
+  imageMimeType: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -28,6 +30,7 @@ type UpdateItemBody = {
   title?: string;
   description?: string;
   source?: string;
+  image?: { data: string; mimeType: string };
 };
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -64,6 +67,22 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     );
   }
 
+  let imageBuffer: Uint8Array<ArrayBuffer> | undefined;
+  let imageMimeType: string | undefined;
+
+  if (body?.image) {
+    const validation = validateImageUpload(body.image);
+
+    if (!validation.ok) {
+      return NextResponse.json({ message: validation.error }, { status: 400 });
+    }
+
+    imageBuffer = new Uint8Array(
+      Buffer.from(validation.value.data, "base64"),
+    ) as Uint8Array<ArrayBuffer>;
+    imageMimeType = validation.value.mimeType;
+  }
+
   const item = await prisma.libraryItem.update({
     where: { id },
     data: {
@@ -71,16 +90,26 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       title: body?.title?.trim(),
       description: body?.description?.trim(),
       source,
+      imageData: imageBuffer,
+      imageMimeType,
     },
     select: itemSelect,
   });
 
-  const contentChanged = body?.title !== undefined || body?.description !== undefined;
+  const contentChanged =
+    body?.title !== undefined ||
+    body?.description !== undefined ||
+    body?.image !== undefined;
 
   if (contentChanged) {
     after(async () => {
       try {
-        await enrichLibraryItem(item.id, item.title, item.description);
+        await enrichLibraryItem(
+          item.id,
+          item.title,
+          item.description,
+          body?.image ? { data: body.image.data, mimeType: body.image.mimeType } : null,
+        );
       } catch (error) {
         console.error(`Failed to enrich library item ${item.id}:`, error);
       }

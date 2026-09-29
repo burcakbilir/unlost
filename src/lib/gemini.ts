@@ -123,6 +123,53 @@ export async function suggestTags(
     .slice(0, 4);
 }
 
+export async function describeImage(
+  base64Data: string,
+  mimeType: string,
+): Promise<string> {
+  const apiKey = requireGeminiApiKey();
+
+  const response = await fetch(
+    `${API_BASE}/models/${GENERATION_MODEL}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: "Describe this image in 2-3 sentences for a personal search tool. Mention what's shown, its style, and any details someone might search for later to find it again.",
+              },
+              { inlineData: { mimeType, data: base64Data } },
+            ],
+          },
+        ],
+        generationConfig: {
+          maxOutputTokens: 200,
+        },
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    throw new Error(`Gemini generateContent failed (${response.status}): ${errorBody}`);
+  }
+
+  const data = (await response.json()) as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+  };
+
+  const description = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!description) {
+    throw new Error("Gemini generateContent returned no text.");
+  }
+
+  return description.trim();
+}
+
 export type SearchMatch = {
   id: string;
   title: string;
