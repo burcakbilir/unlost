@@ -57,6 +57,13 @@ function isCaptureType(value: string): value is CaptureType {
 const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 
+// Below this, matches have consistently been unrelated noise in testing
+// (e.g. an unrelated note scoring ~0.56-0.60 against a dress query) while
+// genuinely relevant matches have scored 0.65+. The LLM's own citations in
+// the answer aren't fully reliable on short/vague queries, so a match is
+// shown if EITHER signal says it's relevant.
+const RELEVANT_SIMILARITY_THRESHOLD = 0.62;
+
 function LibraryCard({ item, onEdit, onDelete, isDeleting }: LibraryCardProps) {
   return (
     <article className="flex flex-col border border-border bg-white/70 p-5 transition-transform hover:-translate-y-1">
@@ -232,7 +239,11 @@ export function LibraryDashboard() {
 
     return askMatches
       .map((match, index) => ({ match, citation: index + 1 }))
-      .filter(({ citation }) => citedIndexes.has(citation));
+      .filter(
+        ({ match, citation }) =>
+          citedIndexes.has(citation) ||
+          match.similarity >= RELEVANT_SIMILARITY_THRESHOLD,
+      );
   }, [askAnswer, askMatches]);
 
   function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
@@ -491,12 +502,14 @@ export function LibraryDashboard() {
                     >
                       <p className="text-xs text-muted">[{citation}]</p>
                       {match.imageMimeType && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`/api/library-items/${match.id}/image`}
-                          alt=""
-                          className="mt-1 aspect-video w-full border border-border object-cover"
-                        />
+                        <div className="mt-1 flex max-h-56 items-center justify-center border border-border bg-surface">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={`/api/library-items/${match.id}/image`}
+                            alt=""
+                            className="max-h-56 w-full object-contain"
+                          />
+                        </div>
                       )}
                       <p className="mt-1 font-medium">{match.title}</p>
                       {match.description && (
