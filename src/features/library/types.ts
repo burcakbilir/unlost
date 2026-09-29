@@ -19,6 +19,7 @@ export type SearchMatch = {
   description: string;
   source: string;
   tags: string[];
+  imageMimeType: string | null;
   updatedAt: string;
   similarity: number;
 };

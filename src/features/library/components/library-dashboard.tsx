@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/format-relative-time";
@@ -169,6 +169,7 @@ export function LibraryDashboard() {
   const [askMatches, setAskMatches] = useState<SearchMatch[]>([]);
   const [isAsking, setIsAsking] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
+  const askRequestId = useRef(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -219,6 +220,18 @@ export function LibraryDashboard() {
       return matchesFilter && matchesQuery;
     });
   }, [activeFilter, items, query]);
+
+  const citedMatches = useMemo(() => {
+    if (!askAnswer) return [];
+
+    const citedIndexes = new Set(
+      Array.from(askAnswer.matchAll(/\[(\d+)\]/g), (match) => Number(match[1])),
+    );
+
+    return askMatches
+      .map((match, index) => ({ match, citation: index + 1 }))
+      .filter(({ citation }) => citedIndexes.has(citation));
+  }, [askAnswer, askMatches]);
 
   function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -336,6 +349,8 @@ export function LibraryDashboard() {
     const trimmedQuery = askQuery.trim();
     if (!trimmedQuery) return;
 
+    const requestId = ++askRequestId.current;
+
     setIsAsking(true);
     setAskError(null);
 
@@ -344,16 +359,23 @@ export function LibraryDashboard() {
         "/api/search",
         { query: trimmedQuery },
       );
+
+      if (requestId !== askRequestId.current) return;
+
       setAskAnswer(result.answer);
       setAskMatches(result.matches);
     } catch (error) {
+      if (requestId !== askRequestId.current) return;
+
       setAskAnswer(null);
       setAskMatches([]);
       setAskError(
         error instanceof Error ? error.message : "Could not search your library",
       );
     } finally {
-      setIsAsking(false);
+      if (requestId === askRequestId.current) {
+        setIsAsking(false);
+      }
     }
   }
 
@@ -458,16 +480,26 @@ export function LibraryDashboard() {
           {askAnswer ? (
             <div className="mt-5">
               <p className="leading-7">{askAnswer}</p>
-              {askMatches.length > 0 && (
+              {citedMatches.length > 0 && (
                 <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {askMatches.map((match, index) => (
+                  {citedMatches.map(({ match, citation }) => (
                     <li
                       key={match.id}
                       className="border border-border bg-white/60 p-3 text-sm"
                     >
-                      <p className="text-xs text-muted">[{index + 1}]</p>
-                      <p className="font-medium">{match.title}</p>
-                      <p className="mt-1 text-muted">{match.description}</p>
+                      <p className="text-xs text-muted">[{citation}]</p>
+                      {match.imageMimeType && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`/api/library-items/${match.id}/image`}
+                          alt=""
+                          className="mt-1 aspect-video w-full border border-border object-cover"
+                        />
+                      )}
+                      <p className="mt-1 font-medium">{match.title}</p>
+                      {match.description && (
+                        <p className="mt-1 text-muted">{match.description}</p>
+                      )}
                     </li>
                   ))}
                 </ul>
