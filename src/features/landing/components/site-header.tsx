@@ -1,6 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { useIsAuthenticated } from "@/features/landing/hooks/use-is-authenticated";
 
 export function SiteHeader() {
+  const isAuthenticated = useIsAuthenticated();
+
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 sm:py-5">
@@ -18,7 +23,7 @@ export function SiteHeader() {
             href="/dashboard"
             className="bg-foreground px-4 py-3 text-white transition-transform hover:-translate-y-0.5 sm:px-5"
           >
-            Start for free
+            {isAuthenticated ? "Go to dashboard" : "Start for free"}
           </Link>
         </nav>
       </div>

@@ -30,7 +30,14 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-surface px-5 py-10">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-surface px-5 py-10">
+      <Link
+        href="/"
+        aria-label="Unlost home"
+        className="text-xl font-semibold tracking-tight"
+      >
+        unlost<span className="text-primary">.</span>
+      </Link>
       <div className="w-full max-w-md border border-border bg-background p-8">
         <h1 className="font-display text-3xl">Create your account</h1>
         <p className="mt-2 text-sm text-muted">

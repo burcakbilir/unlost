@@ -461,7 +461,7 @@ export function LibraryDashboard() {
             title="Sign out"
             aria-label="Sign out"
             onClick={() => void handleSignOut()}
-            className="flex size-9 items-center justify-center border border-white/20 text-white/80 transition-colors hover:border-white/40 hover:bg-white/10 hover:text-white"
+            className="flex size-9 items-center justify-center rounded-full bg-primary text-white transition-transform hover:-translate-y-0.5"
           >
             <svg
               aria-hidden="true"

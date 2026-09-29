@@ -1,6 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { useIsAuthenticated } from "@/features/landing/hooks/use-is-authenticated";
 
 export function FinalCtaSection() {
+  const isAuthenticated = useIsAuthenticated();
+
   return (
     <section id="get-started" aria-labelledby="get-started-title" className="scroll-mt-24">
       <div className="mx-auto max-w-6xl px-6 py-24 text-center sm:py-32">
@@ -12,7 +17,8 @@ export function FinalCtaSection() {
           href="/dashboard"
           className="mt-10 inline-block bg-accent px-7 py-4 font-medium transition-transform hover:-translate-y-0.5"
         >
-          Start for free <span aria-hidden="true">→</span>
+          {isAuthenticated ? "Go to dashboard" : "Start for free"}{" "}
+          <span aria-hidden="true">→</span>
         </Link>
       </div>
     </section>
