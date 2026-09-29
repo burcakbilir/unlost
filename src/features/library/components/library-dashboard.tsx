@@ -472,7 +472,15 @@ export function LibraryDashboard() {
               <input
                 type="search"
                 value={askQuery}
-                onChange={(event) => setAskQuery(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setAskQuery(value);
+                  if (!value.trim()) {
+                    setAskAnswer(null);
+                    setAskMatches([]);
+                    setAskError(null);
+                  }
+                }}
                 placeholder="What did I save about..."
                 className="min-h-12 w-full border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
               />
@@ -514,6 +522,16 @@ export function LibraryDashboard() {
                       <p className="mt-1 font-medium">{match.title}</p>
                       {match.description && (
                         <p className="mt-1 text-muted">{match.description}</p>
+                      )}
+                      {match.source && (
+                        <a
+                          href={match.source}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 block truncate text-xs text-muted underline hover:text-foreground"
+                        >
+                          {match.source}
+                        </a>
                       )}
                     </li>
                   ))}
