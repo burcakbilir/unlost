@@ -3,8 +3,12 @@ import jwt from "jsonwebtoken";
 function requireSessionSecret(): string {
   const value = process.env.SESSION_SECRET;
 
-  if (!value) {
-    throw new Error("SESSION_SECRET is required.");
+  // Anyone who knows this secret can sign a session for any user, so refuse
+  // to start with a missing, placeholder or guessably short one.
+  if (!value || value.startsWith("replace-with") || value.length < 32) {
+    throw new Error(
+      "SESSION_SECRET must be a random string of at least 32 characters (openssl rand -base64 48).",
+    );
   }
 
   return value;

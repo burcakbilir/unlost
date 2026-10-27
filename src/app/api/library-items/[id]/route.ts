@@ -1,37 +1,11 @@
 import { NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getRequestUser } from "@/lib/auth";
-import { enrichLibraryItem } from "@/lib/library-enrichment";
-import { isSafeHttpUrl } from "@/lib/safe-url";
-import { validateImageUpload } from "@/lib/image-upload";
-
-const captureTypes = ["link", "note", "image"] as const;
-
-function isCaptureType(
-  value: unknown,
-): value is (typeof captureTypes)[number] {
-  return typeof value === "string" && captureTypes.includes(value as never);
-}
-
-const itemSelect = {
-  id: true,
-  type: true,
-  title: true,
-  description: true,
-  source: true,
-  tags: true,
-  imageMimeType: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
-
-type UpdateItemBody = {
-  type?: string;
-  title?: string;
-  description?: string;
-  source?: string;
-  image?: { data: string; mimeType: string };
-};
+import { scheduleEnrichment } from "@/lib/library-enrichment";
+import { validateImageUpload, type ImageUpload } from "@/lib/image-upload";
+import { BODY_LIMITS, BodyTooLargeError, bodyTooLarge, jsonError, readJsonBody, tooManyRequests, unauthorized } from "@/lib/http";
+import { RATE_LIMITS, consumeRateLimit } from "@/lib/rate-limit";
+import { firstIssueMessage, itemSelect, updateItemSchema } from "@/features/library/schema";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -39,81 +13,103 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const user = await getRequestUser();
 
   if (!user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized();
   }
 
   const { id } = await params;
 
   const existingItem = await prisma.libraryItem.findFirst({
     where: { id, ownerId: user.id },
+    select: { updatedAt: true, type: true },
   });
 
   if (!existingItem) {
-    return NextResponse.json({ message: "Item not found" }, { status: 404 });
+    return jsonError("Item not found", 404);
   }
 
-  const body = (await request.json().catch(() => null)) as UpdateItemBody | null;
+  let body: unknown;
 
-  if (body?.type !== undefined && !isCaptureType(body.type)) {
-    return NextResponse.json({ message: "Invalid capture type" }, { status: 400 });
+  try {
+    body = await readJsonBody(request, BODY_LIMITS.item);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) return bodyTooLarge();
+    throw error;
   }
 
-  const source = body?.source !== undefined ? body.source.trim() : undefined;
+  const parsed = updateItemSchema.safeParse(body);
 
-  if (source && !isSafeHttpUrl(source)) {
-    return NextResponse.json(
-      { message: "Link must be a valid http(s) URL" },
-      { status: 400 },
-    );
+  if (!parsed.success) {
+    return jsonError(firstIssueMessage(parsed.error), 400);
   }
 
-  let imageBuffer: Uint8Array<ArrayBuffer> | undefined;
-  let imageMimeType: string | undefined;
+  const limited = await consumeRateLimit(RATE_LIMITS.writeByUser, user.id);
 
-  if (body?.image) {
-    const validation = validateImageUpload(body.image);
+  if (!limited.ok) {
+    return tooManyRequests(limited);
+  }
+
+  const data = parsed.data;
+  let image: ImageUpload | undefined;
+
+  if (data.image) {
+    const validation = validateImageUpload(data.image);
 
     if (!validation.ok) {
-      return NextResponse.json({ message: validation.error }, { status: 400 });
+      return jsonError(validation.error, 400);
     }
 
-    imageBuffer = new Uint8Array(
-      Buffer.from(validation.value.data, "base64"),
-    ) as Uint8Array<ArrayBuffer>;
-    imageMimeType = validation.value.mimeType;
+    image = validation.value;
   }
 
-  const item = await prisma.libraryItem.update({
-    where: { id },
-    data: {
-      type: body?.type,
-      title: body?.title?.trim(),
-      description: body?.description?.trim(),
-      source,
-      imageData: imageBuffer,
-      imageMimeType,
-    },
-    select: itemSelect,
-  });
+  const nextType = data.type ?? existingItem.type;
+
+  if (image && nextType !== "image") {
+    return jsonError("Only image items can have an image", 400);
+  }
+
+  // Turning an image item into a link or note drops its image, so no hidden
+  // image (or its AI caption) lingers in storage and in search.
+  const dropsImage = existingItem.type === "image" && nextType !== "image";
 
   const contentChanged =
-    body?.title !== undefined ||
-    body?.description !== undefined ||
-    body?.image !== undefined;
+    data.title !== undefined ||
+    data.description !== undefined ||
+    image !== undefined ||
+    dropsImage;
+
+  const item = await prisma.$transaction(async (tx) => {
+    const updated = await tx.libraryItem.update({
+      where: { id },
+      data: {
+        type: data.type,
+        title: data.title,
+        description: data.description,
+        source: data.source,
+        imageData: dropsImage ? null : image?.bytes,
+        imageMimeType: dropsImage ? null : image?.mimeType,
+        // A new (or removed) image makes the old AI caption wrong; enrichment
+        // writes a fresh one for a new image.
+        imageCaption: image || dropsImage ? null : undefined,
+        // Enrichment treats a changed updatedAt as "superseded". Only edits that
+        // schedule a fresh enrichment may bump it, or an in-flight run is dropped
+        // with nothing to replace it.
+        updatedAt: contentChanged ? undefined : existingItem.updatedAt,
+      },
+      select: itemSelect,
+    });
+
+    if (contentChanged) {
+      // The old vector describes the old content. Clearing it means search
+      // falls back to keywords for this item until re-embedding succeeds,
+      // instead of matching on text that no longer exists.
+      await tx.$executeRaw`UPDATE library_items SET embedding = NULL WHERE id = ${id}`;
+    }
+
+    return updated;
+  });
 
   if (contentChanged) {
-    after(async () => {
-      try {
-        await enrichLibraryItem(
-          item.id,
-          item.title,
-          item.description,
-          body?.image ? { data: body.image.data, mimeType: body.image.mimeType } : null,
-        );
-      } catch (error) {
-        console.error(`Failed to enrich library item ${item.id}:`, error);
-      }
-    });
+    await scheduleEnrichment(after, user.id, item, image ?? null);
   }
 
   return NextResponse.json({ item });
@@ -123,20 +119,20 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   const user = await getRequestUser();
 
   if (!user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized();
   }
 
   const { id } = await params;
 
-  const existingItem = await prisma.libraryItem.findFirst({
+  // deleteMany scoped to the owner: one query, and another user's id simply
+  // matches nothing.
+  const { count } = await prisma.libraryItem.deleteMany({
     where: { id, ownerId: user.id },
   });
 
-  if (!existingItem) {
-    return NextResponse.json({ message: "Item not found" }, { status: 404 });
+  if (count === 0) {
+    return jsonError("Item not found", 404);
   }
-
-  await prisma.libraryItem.delete({ where: { id } });
 
   return NextResponse.json({ ok: true });
 }

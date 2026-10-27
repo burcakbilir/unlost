@@ -1,41 +1,37 @@
-"use client";
-
 import Link from "next/link";
-import { useIsAuthenticated } from "@/features/landing/hooks/use-is-authenticated";
 
-export function HeroSection() {
-  const isAuthenticated = useIsAuthenticated();
-
+export function HeroSection({ isAuthenticated }: { isAuthenticated: boolean }) {
   return (
     <section id="top" aria-labelledby="hero-title" className="scroll-mt-24">
-      <div className="mx-auto max-w-6xl px-6 pb-16 pt-16 sm:pt-20 lg:pb-20 lg:pt-24">
-        <p className="flex items-center gap-3 text-xs uppercase tracking-widest">
-          <span aria-hidden="true" className="size-2 rounded-full bg-primary" />
-          Come back to what you saved
+      <div className="mx-auto flex max-w-3xl flex-col items-center px-6 pb-14 pt-20 text-center sm:pt-28">
+        <p className="rounded-full border border-border px-3.5 py-1 text-sm text-muted">
+          Invite-only beta
         </p>
         <h1
           id="hero-title"
-          className="mt-8 max-w-4xl font-display text-5xl leading-none tracking-tighter sm:text-7xl md:text-8xl lg:text-9xl"
+          className="mt-7 font-display text-5xl leading-[1.02] sm:text-7xl"
         >
-          Never lose
+          Save anything.
           <br />
-          <em className="font-normal text-primary">it again.</em>
+          Find it by <span className="pen-underline">describing it</span>.
         </h1>
-        <div className="mt-10 max-w-lg lg:mt-12">
-          <p className="text-lg leading-8 text-muted">
-            Collect your links, screenshots and passing thoughts in one place. Unlost
-            brings back what you&rsquo;d otherwise forget, right when you need it.
-          </p>
-          <div className="mt-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-            <Link
-              href={isAuthenticated ? "/dashboard" : "/register"}
-              className="bg-accent px-6 py-4 font-medium transition-transform hover:-translate-y-0.5"
-            >
-              {isAuthenticated ? "Go to your library" : "Save your first item"}{" "}
-              <span aria-hidden="true">→</span>
-            </Link>
-            <span className="text-xs text-muted">Free · No credit card required</span>
-          </div>
+        <p className="mt-6 max-w-xl text-lg leading-8 text-muted">
+          Links, notes and screenshots in one quiet library. Weeks later, type
+          what you remember, not where you put it.
+        </p>
+        <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row">
+          <Link
+            href={isAuthenticated ? "/dashboard" : "/register"}
+            className="rounded-xl bg-foreground px-6 py-3 font-medium text-background transition-opacity hover:opacity-85"
+          >
+            {isAuthenticated ? "Open your library" : "Start saving"}
+          </Link>
+          <a
+            href="#how-it-works"
+            className="rounded-xl border border-border px-6 py-3 font-medium transition-colors hover:border-foreground"
+          >
+            How it works
+          </a>
         </div>
       </div>
     </section>

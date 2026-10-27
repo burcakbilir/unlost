@@ -6,3 +6,15 @@ export function isSafeHttpUrl(value: string): boolean {
     return false;
   }
 }
+
+export function safeRedirectPath(value: string | null): string {
+  if (
+    !value ||
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    value.startsWith("/\\")
+  ) {
+    return "/dashboard";
+  }
+  return value;
+}

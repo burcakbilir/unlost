@@ -1,60 +1,47 @@
-type Benefits = {
+type Benefit = {
   id: string;
-  eyebrow: string;
   title: string;
   description: string;
 };
 
-const benefits: Benefits[] = [
+const benefits: Benefit[] = [
   {
-    id: "everything",
-    eyebrow: "Everything in one place",
-    title: "Different formats, one memory.",
-    description:
-      "Keep links, notes and screenshots in a single library instead of losing them across apps.",
+    id: "one-place",
+    title: "One place for every format",
+    description: "Links, notes and screenshots live together instead of across five apps and a camera roll.",
   },
   {
-    id: "context",
-    eyebrow: "Keep the context",
-    title: "Remember why you saved it too.",
-    description:
-      "Short notes and tags tell your future self why an item mattered in the first place.",
+    id: "no-folders",
+    title: "No folders to maintain",
+    description: "Tags are added for you. Search understands meaning, so you never need the exact title.",
   },
   {
-    id: "resurface",
-    eyebrow: "Rediscover it",
-    title: "A living space, not an archive.",
-    description:
-      "Old saves shouldn't just pile up quietly — they should resurface at the right time.",
+    id: "honest-answers",
+    title: "Answers you can check",
+    description: "Every answer cites the items it came from, and says so plainly when nothing matches.",
+  },
+  {
+    id: "yours",
+    title: "Your data, your key",
+    description: "AI runs on your own free Gemini key. Delete your account and everything goes with it.",
   },
 ];
 
 export function BenefitsSection() {
   return (
-    <section aria-labelledby="benefits-title" className="bg-sidebar text-white">
+    <section aria-labelledby="benefits-title" className="border-t border-border">
       <div className="mx-auto max-w-6xl px-6 py-24">
-        <p className="text-xs uppercase tracking-widest text-white/60">
-          Why Unlost?
-        </p>
-        <h2
-          id="benefits-title"
-          className="mt-6 max-w-3xl font-display text-4xl leading-tight sm:text-5xl lg:text-6xl"
-        >
-          Make what you saved useful again.
+        <h2 id="benefits-title" className="max-w-2xl font-display text-4xl leading-tight sm:text-5xl">
+          Built to be found again, not filed away.
         </h2>
-        <div className="mt-16 grid gap-10 lg:grid-cols-3">
+        <dl className="mt-14 grid gap-x-8 gap-y-10 sm:grid-cols-2">
           {benefits.map((benefit) => (
-            <article key={benefit.id} className="border-t border-white/20 pt-6">
-              <p className="text-xs uppercase tracking-widest text-accent">
-                {benefit.eyebrow}
-              </p>
-              <h3 className="mt-6 font-display text-2xl">{benefit.title}</h3>
-              <p className="mt-3 leading-7 text-white/60">
-                {benefit.description}
-              </p>
-            </article>
+            <div key={benefit.id} className="pt-5">
+              <dt className="font-display text-xl">{benefit.title}</dt>
+              <dd className="mt-2 max-w-md leading-7 text-muted">{benefit.description}</dd>
+            </div>
           ))}
-        </div>
+        </dl>
       </div>
     </section>
   );

@@ -1,4 +1,6 @@
-export type CaptureType = "link" | "note" | "image";
+import { CAPTURE_TYPES } from "@/features/library/constants";
+
+export type CaptureType = (typeof CAPTURE_TYPES)[number];
 
 export type LibraryItem = {
   id: string;
@@ -21,7 +23,17 @@ export type SearchMatch = {
   tags: string[];
   imageMimeType: string | null;
   updatedAt: string;
-  similarity: number;
+  // Null for keyword matches.
+  similarity: number | null;
+  // "possible" matches are weaker signals; the UI folds them away.
+  confidence: "strong" | "possible";
+};
+
+export type SearchResponse = {
+  mode: "semantic" | "keyword";
+  notice: string | null;
+  canAnswer: boolean;
+  matches: SearchMatch[];
 };
 
 export type LibraryFilter = "all" | CaptureType;

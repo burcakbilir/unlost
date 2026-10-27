@@ -1,138 +1,74 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api-client";
-import { formatRelativeTime } from "@/lib/format-relative-time";
+import { apiDelete, apiGet, apiPatch, apiPost, isUnauthorizedError } from "@/lib/api-client";
+import { ALLOWED_IMAGE_TYPES, MAX_SOURCE_IMAGE_BYTES } from "@/features/library/constants";
+import { compressImage } from "@/features/library/compress-image";
+import { itemImageUrl } from "@/features/library/image-url";
 import type {
   CaptureType,
   LibraryFilter,
   LibraryItem,
   SearchMatch,
+  SearchResponse,
 } from "@/features/library/types";
+import {
+  SETTINGS_TITLE_ID,
+  SettingsPanel,
+  type GeminiKeyStatus,
+} from "@/features/settings/components/settings-panel";
+import { Modal } from "@/components/modal";
+import { PlusIcon, SearchIcon, SparkleIcon } from "@/features/library/components/icons";
+import { AskPanel } from "@/features/library/components/ask-panel";
+import {
+  DashboardSidebar,
+  FilterChips,
+  filterLabel,
+} from "@/features/library/components/dashboard-sidebar";
+import { LibraryCard, displayHost } from "@/features/library/components/library-card";
 
-type LibraryCardProps = {
-  item: LibraryItem;
-  onEdit: (item: LibraryItem) => void;
-  onDelete: (id: string) => void;
-  isDeleting: boolean;
-};
-
-type FilterOption = {
-  label: string;
-  value: LibraryFilter;
-};
-
-const filterOptions: FilterOption[] = [
-  { label: "All", value: "all" },
-  { label: "Links", value: "link" },
-  { label: "Notes", value: "note" },
-  { label: "Images", value: "image" },
-];
-
-const typeLabels: Record<CaptureType, string> = {
-  link: "Link",
-  note: "Note",
-  image: "Image",
-};
-
-const typeStyles: Record<CaptureType, string> = {
-  link: "bg-mint",
-  note: "bg-lilac",
-  image: "bg-peach",
-};
-
-const typeIcon: Record<CaptureType, string> = {
-  link: "↗",
-  note: "✦",
-  image: "◌",
-};
+// One search result in the Ask panel. `citation` is its [n] in an AI answer;
+// weaker matches have none because they're never sent to the model.
+function AskMatch({ match, citation }: { match: SearchMatch; citation?: number }) {
+  return (
+    <li className="rounded-xl border border-border p-3 text-sm">
+      {citation ? (
+        <p className="text-xs text-muted" aria-hidden="true">
+          [{citation}]
+        </p>
+      ) : null}
+      {match.imageMimeType && (
+        <div className="mt-1 flex max-h-56 items-center justify-center overflow-hidden rounded-lg bg-surface">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={itemImageUrl(match)}
+            alt={match.title}
+            loading="lazy"
+            decoding="async"
+            className="max-h-56 w-full object-contain"
+          />
+        </div>
+      )}
+      <p className="mt-1 font-medium">{match.title}</p>
+      {match.description && <p className="mt-1 line-clamp-4 text-muted">{match.description}</p>}
+      {match.source && (
+        <a
+          href={match.source}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 block truncate text-xs text-muted underline-offset-4 hover:underline"
+        >
+          {displayHost(match.source)}
+        </a>
+      )}
+    </li>
+  );
+}
 
 function isCaptureType(value: string): value is CaptureType {
   return value === "link" || value === "note" || value === "image";
-}
-
-const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
-const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
-
-// Below this, matches have consistently been unrelated noise in testing
-// (e.g. an unrelated note scoring ~0.56-0.60 against a dress query) while
-// genuinely relevant matches have scored 0.65+. The LLM's own citations in
-// the answer aren't fully reliable on short/vague queries, so a match is
-// shown if EITHER signal says it's relevant.
-const RELEVANT_SIMILARITY_THRESHOLD = 0.62;
-
-function LibraryCard({ item, onEdit, onDelete, isDeleting }: LibraryCardProps) {
-  return (
-    <article className="flex h-full flex-col bg-white/70 p-4 transition-transform hover:-translate-y-1">
-      <p className="text-xs uppercase tracking-widest text-muted">
-        {typeLabels[item.type]}
-      </p>
-      <div
-        className={`mt-3 flex aspect-video items-start justify-end overflow-hidden p-4 ${item.imageMimeType ? "bg-surface" : typeStyles[item.type]}`}
-      >
-        {item.imageMimeType ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`/api/library-items/${item.id}/image`}
-            alt=""
-            className="h-full w-full object-contain"
-          />
-        ) : (
-          <span aria-hidden="true" className="font-display text-4xl">
-            {typeIcon[item.type]}
-          </span>
-        )}
-      </div>
-      <h3 className="mt-4 font-display text-xl">{item.title}</h3>
-      <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted">
-        {item.description}
-      </p>
-      {item.tags.length > 0 && (
-        <ul className="mt-3 flex flex-wrap gap-2">
-          {item.tags.map((tag) => (
-            <li key={tag} className="bg-surface px-2 py-1 text-xs text-muted">
-              {tag}
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="mt-auto flex items-center justify-between gap-3 pt-4 text-xs text-muted">
-        {item.source ? (
-          <a
-            href={item.source}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="truncate underline hover:text-foreground"
-          >
-            {item.source}
-          </a>
-        ) : (
-          <span className="truncate" />
-        )}
-        <span className="shrink-0">{formatRelativeTime(item.updatedAt)}</span>
-      </div>
-      <div className="mt-3 flex gap-4 border-t border-border pt-3 text-xs">
-        <button
-          type="button"
-          onClick={() => onEdit(item)}
-          className="font-medium text-muted hover:text-foreground"
-        >
-          Edit
-        </button>
-        <button
-          type="button"
-          onClick={() => onDelete(item.id)}
-          disabled={isDeleting}
-          className="font-medium text-muted hover:text-red-600 disabled:opacity-60"
-        >
-          {isDeleting ? "Deleting..." : "Delete"}
-        </button>
-      </div>
-    </article>
-  );
 }
 
 type CurrentUser = {
@@ -140,15 +76,6 @@ type CurrentUser = {
   name: string;
   email: string;
 };
-
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -178,13 +105,30 @@ export function LibraryDashboard() {
     fileName: string;
   } | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [askQuery, setAskQuery] = useState("");
-  const [askAnswer, setAskAnswer] = useState<string | null>(null);
-  const [askMatches, setAskMatches] = useState<SearchMatch[]>([]);
+  const [askResult, setAskResult] = useState<
+    (SearchResponse & { query: string }) | null
+  >(null);
   const [isAsking, setIsAsking] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
   const askRequestId = useRef(0);
+  const [askAnswer, setAskAnswer] = useState<string | null>(null);
+  const [isAnswering, setIsAnswering] = useState(false);
+  const [answerError, setAnswerError] = useState<string | null>(null);
+  const [geminiKey, setGeminiKey] = useState<GeminiKeyStatus>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // An expired or revoked session surfaces as a 401 from any request. Send the
+  // user to sign in (and back here afterwards) instead of showing "Unauthorized".
+  function handleApiError(error: unknown, fallback: string): string {
+    if (isUnauthorizedError(error)) {
+      router.replace("/login?next=/dashboard");
+      return "Your session has expired. Redirecting to sign in...";
+    }
+    return error instanceof Error ? error.message : fallback;
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -192,19 +136,18 @@ export function LibraryDashboard() {
     async function load() {
       try {
         const [meResponse, itemsResponse] = await Promise.all([
-          apiGet<{ user: CurrentUser }>("/api/auth/me"),
+          apiGet<{ user: CurrentUser; geminiKey: GeminiKeyStatus }>("/api/auth/me"),
           apiGet<{ items: LibraryItem[] }>("/api/library-items"),
         ]);
 
         if (isMounted) {
           setUser(meResponse.user);
+          setGeminiKey(meResponse.geminiKey);
           setItems(itemsResponse.items);
         }
       } catch (error) {
         if (isMounted) {
-          setLoadError(
-            error instanceof Error ? error.message : "Could not load your library",
-          );
+          setLoadError(handleApiError(error, "Could not load your library"));
         }
       } finally {
         if (isMounted) {
@@ -218,6 +161,8 @@ export function LibraryDashboard() {
     return () => {
       isMounted = false;
     };
+    // Runs once on mount; handleApiError only uses the stable router.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filterCounts = useMemo(() => {
@@ -245,24 +190,9 @@ export function LibraryDashboard() {
     });
   }, [activeFilter, items, query]);
 
-  const citedMatches = useMemo(() => {
-    if (!askAnswer) return [];
-
-    const citedIndexes = new Set(
-      Array.from(askAnswer.matchAll(/\[(\d+)\]/g), (match) => Number(match[1])),
-    );
-
-    return askMatches
-      .map((match, index) => ({ match, citation: index + 1 }))
-      .filter(
-        ({ match, citation }) =>
-          citedIndexes.has(citation) ||
-          match.similarity >= RELEVANT_SIMILARITY_THRESHOLD,
-      );
-  }, [askAnswer, askMatches]);
-
-  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  async function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.target;
+    const file = input.files?.[0];
     setImageError(null);
 
     if (!file) {
@@ -272,26 +202,28 @@ export function LibraryDashboard() {
 
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
       setImageError("Image must be PNG, JPEG, or WebP");
-      event.target.value = "";
+      input.value = "";
       return;
     }
 
-    if (file.size > MAX_IMAGE_BYTES) {
-      setImageError("Image must be smaller than 3MB");
-      event.target.value = "";
+    if (file.size > MAX_SOURCE_IMAGE_BYTES) {
+      setImageError("Image must be smaller than 20MB");
+      input.value = "";
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const base64 = dataUrl.split(",")[1] ?? "";
-      setImageFile({ dataUrl, base64, mimeType: file.type, fileName: file.name });
-    };
-    reader.onerror = () => {
-      setImageError("Could not read this file");
-    };
-    reader.readAsDataURL(file);
+    setIsProcessingImage(true);
+
+    try {
+      const compressed = await compressImage(file);
+      setImageFile({ ...compressed, fileName: file.name });
+    } catch (error) {
+      setImageFile(null);
+      setImageError(error instanceof Error ? error.message : "Could not read this file");
+      input.value = "";
+    } finally {
+      setIsProcessingImage(false);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -341,12 +273,27 @@ export function LibraryDashboard() {
       setIsComposerOpen(false);
       setEditingItem(null);
     } catch (error) {
-      setSaveError(
-        error instanceof Error ? error.message : "Could not save this item",
-      );
+      setSaveError(handleApiError(error, "Could not save this item"));
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function openNewItem() {
+    setEditingItem(null);
+    setComposerType("note");
+    setSaveError(null);
+    setImageFile(null);
+    setImageError(null);
+    setIsComposerOpen(true);
+  }
+
+  function closeComposer() {
+    setIsComposerOpen(false);
+    setEditingItem(null);
+    setComposerType("note");
+    setImageFile(null);
+    setImageError(null);
   }
 
   function handleEdit(item: LibraryItem) {
@@ -367,12 +314,24 @@ export function LibraryDashboard() {
       await apiDelete(`/api/library-items/${id}`);
       setItems((currentItems) => currentItems.filter((item) => item.id !== id));
     } catch (error) {
-      window.alert(
-        error instanceof Error ? error.message : "Could not delete this item",
-      );
+      const message = handleApiError(error, "Could not delete this item");
+      if (!isUnauthorizedError(error)) window.alert(message);
     } finally {
       setDeletingId(null);
     }
+  }
+
+  const strongMatches = askResult?.matches.filter((match) => match.confidence === "strong") ?? [];
+  const weakMatches = askResult?.matches.filter((match) => match.confidence === "possible") ?? [];
+
+  function resetAsk() {
+    askRequestId.current++;
+    setAskResult(null);
+    setAskError(null);
+    setAskAnswer(null);
+    setAnswerError(null);
+    setIsAsking(false);
+    setIsAnswering(false);
   }
 
   async function handleAsk(event: FormEvent<HTMLFormElement>) {
@@ -384,25 +343,23 @@ export function LibraryDashboard() {
 
     setIsAsking(true);
     setAskError(null);
+    setAskAnswer(null);
+    setAnswerError(null);
+    setIsAnswering(false);
 
     try {
-      const result = await apiPost<{ answer: string; matches: SearchMatch[] }>(
-        "/api/search",
-        { query: trimmedQuery },
-      );
+      const result = await apiPost<SearchResponse>("/api/search", {
+        query: trimmedQuery,
+      });
 
       if (requestId !== askRequestId.current) return;
 
-      setAskAnswer(result.answer);
-      setAskMatches(result.matches);
+      setAskResult({ ...result, query: trimmedQuery });
     } catch (error) {
       if (requestId !== askRequestId.current) return;
 
-      setAskAnswer(null);
-      setAskMatches([]);
-      setAskError(
-        error instanceof Error ? error.message : "Could not search your library",
-      );
+      setAskResult(null);
+      setAskError(handleApiError(error, "Could not search your library"));
     } finally {
       if (requestId === askRequestId.current) {
         setIsAsking(false);
@@ -410,202 +367,189 @@ export function LibraryDashboard() {
     }
   }
 
+  // Opt-in: the only search step that spends generation quota.
+  async function handleAnswer() {
+    if (!askResult || strongMatches.length === 0) return;
+
+    const requestId = askRequestId.current;
+
+    setIsAnswering(true);
+    setAnswerError(null);
+
+    try {
+      const { answer } = await apiPost<{ answer: string }>("/api/search/answer", {
+        query: askResult.query,
+        // Same order as the numbered list, so [1], [2] in the answer line up.
+        itemIds: strongMatches.map((match) => match.id),
+      });
+
+      if (requestId !== askRequestId.current) return;
+      setAskAnswer(answer);
+    } catch (error) {
+      if (requestId !== askRequestId.current) return;
+      setAnswerError(handleApiError(error, "Could not write an answer"));
+    } finally {
+      if (requestId === askRequestId.current) {
+        setIsAnswering(false);
+      }
+    }
+  }
+
   async function handleSignOut() {
-    await apiPost("/api/auth/logout", {});
+    try {
+      await apiPost("/api/auth/logout", {});
+    } catch {
+      // Signing out is best-effort: go to the login page either way.
+    }
     router.push("/login");
     router.refresh();
   }
 
   return (
-    <div className="flex min-h-screen bg-surface text-foreground">
-      <aside
-        aria-label="Unlost menu"
-        className="sticky top-0 flex h-screen w-16 shrink-0 flex-col items-center bg-sidebar py-5 text-white sm:w-20"
-      >
-        <Link
-          href="/"
-          aria-label="Unlost home"
-          className="font-display text-2xl italic"
-        >
-          u.
-        </Link>
-        <button
-          type="button"
-          aria-expanded={isComposerOpen}
-          aria-controls="capture-composer"
-          title="New item"
-          onClick={() => {
-            setEditingItem(null);
-            setComposerType("note");
-            setImageFile(null);
-            setImageError(null);
-            setIsComposerOpen((isOpen) => !isOpen);
-          }}
-          className="mt-10 flex size-11 items-center justify-center bg-accent text-xl text-foreground transition-transform hover:-translate-y-0.5"
-        >
-          {isComposerOpen ? "×" : "+"}
-        </button>
-        <div className="mt-auto flex flex-col items-center gap-3">
-          <span
-            title={user?.name}
-            className="flex size-9 items-center justify-center rounded-full bg-primary text-xs"
-          >
-            {user ? getInitials(user.name) : ""}
-          </span>
-          <button
-            type="button"
-            title="Sign out"
-            aria-label="Sign out"
-            onClick={() => void handleSignOut()}
-            className="flex size-9 items-center justify-center rounded-full bg-primary text-white transition-transform hover:-translate-y-0.5"
-          >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="size-4"
-            >
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          </button>
-        </div>
-      </aside>
+    <div className="min-h-screen bg-background text-foreground md:flex">
+      <DashboardSidebar
+        user={user}
+        activeFilter={activeFilter}
+        counts={filterCounts}
+        onFilterChange={setActiveFilter}
+        onNewItem={openNewItem}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onSignOut={() => void handleSignOut()}
+      />
 
-      <main className="min-w-0 flex-1 px-5 py-8 sm:px-8 sm:py-12">
+      <main className="min-w-0 flex-1 px-4 py-6 sm:px-8 sm:py-10">
         <div className="mx-auto max-w-6xl">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="flex items-center gap-3 text-xs uppercase tracking-widest text-primary">
-              <span aria-hidden="true" className="size-2 rounded-full bg-primary" />
+            <p className="text-sm text-muted">
               {getGreeting()}
               {user ? `, ${user.name.split(" ")[0]}` : ""}
             </p>
-            <h1 className="mt-3 font-display text-4xl sm:text-5xl">
-              What do you want to remember today?
-            </h1>
+            <h1 className="mt-1 font-display text-3xl sm:text-4xl">{filterLabel(activeFilter)}</h1>
           </div>
-          <label className="relative block shrink-0 sm:w-72">
-            <span className="sr-only">Search your library</span>
+          <label className="relative block sm:w-80">
+            <span className="sr-only">Filter your library by keyword</span>
+            <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-muted" />
             <input
               type="search"
+              name="filter"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search your library"
-              className="min-h-12 w-full border border-border bg-background px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Filter by keyword"
+              className="min-h-11 w-full rounded-xl border border-border pl-10 pr-4 text-sm focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
           </label>
+        </header>
+
+        <div className="mt-6">
+        <AskPanel
+          query={askQuery}
+          onQueryChange={(value) => {
+            setAskQuery(value);
+            if (!value.trim()) resetAsk();
+          }}
+          onSubmit={(event) => void handleAsk(event)}
+          isAsking={isAsking}
+        >
+          {/* Announced to screen readers as results, answers and errors arrive. */}
+          <div aria-live="polite" aria-busy={isAsking || isAnswering}>
+            {askError ? (
+              <p className="mt-4 text-sm font-medium text-red-700">{askError}</p>
+            ) : null}
+
+            {askResult ? (
+              <div className="mt-5">
+                {askResult.notice ? (
+                  <p className="mb-3 rounded-xl border border-border px-3 py-2 text-sm text-muted">{askResult.notice}</p>
+                ) : null}
+
+                {strongMatches.length === 0 ? (
+                  <p className="leading-7 text-muted">
+                    {weakMatches.length > 0
+                      ? "No clear match in your library."
+                      : "Nothing in your library looks related to that yet."}
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-sm text-muted">
+                        {strongMatches.length}{" "}
+                        {strongMatches.length === 1 ? "match" : "matches"}
+                        {askResult.mode === "keyword" ? " by keyword" : ""}
+                      </p>
+                      {askResult.canAnswer && !askAnswer ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleAnswer()}
+                          disabled={isAnswering}
+                          className="inline-flex items-center gap-2 rounded-xl border border-foreground px-3.5 py-1.5 text-sm font-medium transition-colors hover:bg-foreground hover:text-background disabled:opacity-50"
+                        >
+                          <SparkleIcon className="size-4" />
+                          {isAnswering ? "Writing answer..." : "Summarize with AI"}
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {answerError ? (
+                      <p className="mt-3 text-sm font-medium text-red-700">{answerError}</p>
+                    ) : null}
+                    {askAnswer ? (
+                      <p className="mt-4 rounded-xl border-l-2 border-foreground pl-4 leading-7">{askAnswer}</p>
+                    ) : null}
+
+                    <ol className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {strongMatches.map((match, index) => (
+                        <AskMatch key={match.id} match={match} citation={index + 1} />
+                      ))}
+                    </ol>
+                  </>
+                )}
+
+                {/* Weaker signals stay folded: a vague query shouldn't present
+                    noise as an answer, but nothing possibly relevant is lost. */}
+                {weakMatches.length > 0 ? (
+                  <details className="mt-4 text-sm">
+                    <summary className="cursor-pointer text-muted hover:text-foreground">
+                      Show {weakMatches.length} weaker {weakMatches.length === 1 ? "match" : "matches"}
+                    </summary>
+                    <ul className="mt-3 grid gap-3 opacity-80 sm:grid-cols-2">
+                      {weakMatches.map((match) => (
+                        <AskMatch key={match.id} match={match} />
+                      ))}
+                    </ul>
+                  </details>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </AskPanel>
         </div>
 
-        <section
-          aria-labelledby="ask-library-title"
-          className="mt-8 bg-sidebar p-5 text-white sm:p-8"
+        <Modal
+          open={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          labelledBy={SETTINGS_TITLE_ID}
         >
-          <div className="flex items-center gap-3">
-            <span
-              aria-hidden="true"
-              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary"
-            >
-              ✦
-            </span>
-            <div>
-              <p className="text-xs uppercase tracking-widest text-white/60">
-                Ask, don&rsquo;t scroll
-              </p>
-              <h2 id="ask-library-title" className="font-display text-2xl">
-                Ask your library
-              </h2>
-            </div>
-          </div>
-          <form
-            onSubmit={(event) => void handleAsk(event)}
-            className="mt-5 flex flex-col gap-3 sm:flex-row"
-          >
-            <label className="flex-1">
-              <span className="sr-only">Ask a question about what you saved</span>
-              <input
-                type="search"
-                value={askQuery}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setAskQuery(value);
-                  if (!value.trim()) {
-                    setAskAnswer(null);
-                    setAskMatches([]);
-                    setAskError(null);
-                  }
-                }}
-                placeholder="What did I save about..."
-                className="min-h-12 w-full border border-white/20 bg-white px-4 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={isAsking || !askQuery.trim()}
-              className="bg-accent px-6 py-3 font-medium text-foreground transition-transform hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
-            >
-              {isAsking ? "Thinking..." : "Ask"}
-            </button>
-          </form>
+          <SettingsPanel
+            geminiKey={geminiKey}
+            onGeminiKeyChange={setGeminiKey}
+            onApiError={handleApiError}
+            onClose={() => setIsSettingsOpen(false)}
+            onAccountDeleted={() => {
+              router.replace("/");
+              router.refresh();
+            }}
+          />
+        </Modal>
 
-          {askError ? (
-            <p className="mt-4 text-sm text-red-300">{askError}</p>
-          ) : null}
-
-          {askAnswer ? (
-            <div className="mt-5">
-              <p className="leading-7">{askAnswer}</p>
-              {citedMatches.length > 0 && (
-                <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {citedMatches.map(({ match, citation }) => (
-                    <li
-                      key={match.id}
-                      className="border border-white/20 bg-white/95 p-3 text-sm text-foreground"
-                    >
-                      <p className="text-xs text-muted">[{citation}]</p>
-                      {match.imageMimeType && (
-                        <div className="mt-1 flex max-h-56 items-center justify-center border border-border bg-surface">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={`/api/library-items/${match.id}/image`}
-                            alt=""
-                            className="max-h-56 w-full object-contain"
-                          />
-                        </div>
-                      )}
-                      <p className="mt-1 font-medium">{match.title}</p>
-                      {match.description && (
-                        <p className="mt-1 text-muted">{match.description}</p>
-                      )}
-                      {match.source && (
-                        <a
-                          href={match.source}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1 block truncate text-xs text-muted underline hover:text-foreground"
-                        >
-                          {match.source}
-                        </a>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ) : null}
-        </section>
-
-        {isComposerOpen && (
-          <section
-            id="capture-composer"
-            aria-labelledby="capture-composer-title"
-            className="mt-8 border border-border bg-background p-5 sm:p-8"
-          >
+        {/* closedBy="closerequest": Esc closes it, but a stray click outside
+            doesn't throw away a half-written item. */}
+        <Modal
+          open={isComposerOpen}
+          onClose={closeComposer}
+          labelledBy="capture-composer-title"
+          closedBy="closerequest"
+        >
             <h2 id="capture-composer-title" className="font-display text-3xl">
               {editingItem ? "Edit item" : "Save something new"}
             </h2>
@@ -619,8 +563,9 @@ export function LibraryDashboard() {
                 <input
                   name="title"
                   required
+                  data-autofocus
                   defaultValue={editingItem?.title}
-                  className="min-h-12 border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
                   placeholder="What do you want to remember?"
                 />
               </label>
@@ -632,7 +577,7 @@ export function LibraryDashboard() {
                   onChange={(event) =>
                     setComposerType(event.target.value as CaptureType)
                   }
-                  className="min-h-12 border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
                 >
                   <option value="note">Note</option>
                   <option value="link">Link</option>
@@ -645,7 +590,7 @@ export function LibraryDashboard() {
                   name="source"
                   type="url"
                   defaultValue={editingItem?.source}
-                  className="min-h-12 border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
                   placeholder="https://..."
                 />
               </label>
@@ -657,7 +602,7 @@ export function LibraryDashboard() {
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="border border-border bg-white px-4 py-3 font-medium hover:bg-surface"
+                        className="rounded-xl border border-border px-4 py-3 font-medium hover:bg-surface"
                       >
                         Choose file
                       </button>
@@ -671,19 +616,27 @@ export function LibraryDashboard() {
                     <input
                       ref={fileInputRef}
                       type="file"
+                      name="image"
                       accept="image/png,image/jpeg,image/webp"
                       onChange={handleImageChange}
                       className="hidden"
                     />
                   </div>
+                  {isProcessingImage ? (
+                    <p role="status" className="text-sm text-muted lg:col-span-2">
+                      Optimizing image...
+                    </p>
+                  ) : null}
                   {imageError ? (
-                    <p className="text-sm text-red-600 lg:col-span-2">{imageError}</p>
+                    <p role="alert" className="text-sm text-red-600 lg:col-span-2">
+                      {imageError}
+                    </p>
                   ) : null}
                   {imageFile ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={imageFile.dataUrl}
-                      alt="Selected preview"
+                      alt="Preview of the selected image"
                       className="max-h-48 w-auto border border-border object-contain lg:col-span-2"
                     />
                   ) : editingItem?.imageMimeType ? (
@@ -693,8 +646,8 @@ export function LibraryDashboard() {
                       </p>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={`/api/library-items/${editingItem.id}/image`}
-                        alt="Current"
+                        src={itemImageUrl(editingItem)}
+                        alt={`Current image for ${editingItem.title}`}
                         className="mt-1 max-h-48 w-auto border border-border object-contain"
                       />
                     </div>
@@ -710,77 +663,64 @@ export function LibraryDashboard() {
                   }
                   rows={4}
                   defaultValue={editingItem?.description}
-                  className="resize-y border border-border bg-white px-4 py-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="Why do you want to keep this? (leave blank to let AI describe the image)"
+                  className="resize-y rounded-xl border border-border px-4 py-3 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
+                  placeholder={
+                    composerType === "image" && geminiKey
+                      ? "Why do you want to keep this? (leave blank to let AI describe the image)"
+                      : "Why do you want to keep this?"
+                  }
                 />
               </label>
 
               {saveError ? (
-                <p className="text-sm text-red-600 lg:col-span-2">{saveError}</p>
+                <p role="alert" className="text-sm text-red-600 lg:col-span-2">
+                  {saveError}
+                </p>
               ) : null}
 
               <div className="flex flex-wrap gap-3 lg:col-span-2">
                 <button
                   type="submit"
-                  disabled={isSaving}
-                  className="bg-foreground px-6 py-3 text-white disabled:opacity-60"
+                  disabled={isSaving || isProcessingImage}
+                  className="bg-foreground px-6 py-3 text-background disabled:opacity-60 rounded-xl"
                 >
                   {isSaving ? "Saving..." : editingItem ? "Update" : "Save"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsComposerOpen(false);
-                    setEditingItem(null);
-                    setComposerType("note");
-                    setImageFile(null);
-                    setImageError(null);
-                  }}
-                  className="border border-border px-6 py-3"
+                  onClick={closeComposer}
+                  className="border border-border px-6 py-3 rounded-xl"
                 >
                   Cancel
                 </button>
               </div>
             </form>
-          </section>
-        )}
+        </Modal>
 
-        <section aria-labelledby="library-results-title" className="mt-10">
+        <section aria-labelledby="library-results-title" className="mt-8">
           <h2 id="library-results-title" className="sr-only">
-            Results
+            Saved items
           </h2>
-          <div
-            role="group"
-            className="flex gap-6 overflow-x-auto border-b border-border pb-3 text-sm text-muted"
-            aria-label="Filter by type"
-          >
-            {filterOptions.map((filter) => (
-              <button
-                key={filter.value}
-                type="button"
-                aria-pressed={activeFilter === filter.value}
-                onClick={() => setActiveFilter(filter.value)}
-                className={`shrink-0 pb-2 transition-colors ${activeFilter === filter.value ? "border-b-2 border-foreground text-foreground" : "hover:text-foreground"}`}
-              >
-                {filter.label} {filterCounts[filter.value]}
-              </button>
-            ))}
-          </div>
+          <FilterChips
+            activeFilter={activeFilter}
+            counts={filterCounts}
+            onFilterChange={setActiveFilter}
+          />
 
           {isLoading ? (
             <p className="mt-5 text-sm text-muted">Loading your library...</p>
           ) : loadError ? (
-            <div className="mt-5 border border-red-200 bg-red-50 px-6 py-8 text-center text-sm text-red-700">
+            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-6 py-8 text-center text-sm text-red-700">
               {loadError}
             </div>
           ) : (
             <>
-              <p aria-live="polite" className="mt-5 text-sm text-muted">
-                {visibleItems.length} items
+              <p aria-live="polite" className="mt-4 text-sm text-muted md:mt-0">
+                {visibleItems.length} {visibleItems.length === 1 ? "item" : "items"}
               </p>
 
               {visibleItems.length > 0 ? (
-                <div className="mt-5 grid items-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="mt-3 grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {visibleItems.map((item) => (
                     <LibraryCard
                       key={item.id}
@@ -791,12 +731,36 @@ export function LibraryDashboard() {
                     />
                   ))}
                 </div>
-              ) : (
-                <div className="mt-5 border border-dashed border-border bg-background px-6 py-16 text-center">
-                  <h3 className="font-display text-2xl">No matching items.</h3>
-                  <p className="mt-2 text-muted">
-                    Try a different search term or filter.
+              ) : items.length === 0 ? (
+                <div className="mt-3 rounded-2xl border border-dashed border-border px-6 py-14 text-center">
+                  <h3 className="font-display text-2xl">Your library is empty</h3>
+                  <p className="mx-auto mt-2 max-w-sm text-muted">
+                    Save a link, a note or a screenshot. Later, describe it in Ask your library to find it again.
                   </p>
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    onClick={openNewItem}
+                    className="mt-6 inline-flex items-center gap-2 rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-background"
+                  >
+                    <PlusIcon className="size-5" />
+                    Save your first item
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-3 rounded-2xl border border-dashed border-border px-6 py-14 text-center">
+                  <h3 className="font-display text-2xl">No items match</h3>
+                  <p className="mt-2 text-muted">Try another keyword, or show all items.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery("");
+                      setActiveFilter("all");
+                    }}
+                    className="mt-6 rounded-xl border border-border px-5 py-2.5 text-sm font-medium hover:bg-surface"
+                  >
+                    Clear filters
+                  </button>
                 </div>
               )}
             </>

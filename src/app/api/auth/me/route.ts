@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/auth";
+import { getUserGeminiKey, maskApiKey } from "@/lib/gemini-key";
+import { unauthorized } from "@/lib/http";
 
 export async function GET() {
   const user = await getRequestUser();
 
   if (!user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized();
   }
 
-  return NextResponse.json({ user });
+  const apiKey = await getUserGeminiKey(user.id);
+
+  return NextResponse.json({
+    user,
+    geminiKey: apiKey ? { masked: maskApiKey(apiKey) } : null,
+  });
 }

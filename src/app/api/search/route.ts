@@ -1,80 +1,100 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getRequestUser } from "@/lib/auth";
-import { answerFromMatches, embedText, toVectorLiteral } from "@/lib/gemini";
+import { GeminiKeyError, GeminiQuotaError, embedText, toVectorLiteral } from "@/lib/gemini";
+import { getUserGeminiKey } from "@/lib/gemini-key";
+import {
+  keywordSearch,
+  keywordTerms,
+  rankResults,
+  semanticSearch,
+  type MatchRow,
+  type RankedMatch,
+} from "@/lib/library-search";
+import { BODY_LIMITS, BodyTooLargeError, bodyTooLarge, jsonError, readJsonBody, tooManyRequests, unauthorized } from "@/lib/http";
+import { RATE_LIMITS, consumeRateLimit } from "@/lib/rate-limit";
+import { firstIssueMessage, searchSchema } from "@/features/library/schema";
 
-type SearchBody = { query?: string };
+type SearchMode = "semantic" | "keyword";
 
-type MatchRow = {
-  id: string;
-  type: string;
-  title: string;
-  description: string;
-  imageCaption: string | null;
-  imageMimeType: string | null;
-  source: string;
-  tags: string[];
-  updatedAt: Date;
-  similarity: number;
-};
-
+// Finding matches costs at most one embedding request. Writing an answer from
+// them is a separate, opt-in request (/api/search/answer), so a search the user
+// only skims never spends generation quota.
 export async function POST(request: Request) {
   const user = await getRequestUser();
 
   if (!user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized();
   }
 
-  const body = (await request.json().catch(() => null)) as SearchBody | null;
-  const query = body?.query?.trim();
-
-  if (!query) {
-    return NextResponse.json({ message: "Query is required" }, { status: 400 });
-  }
-
-  let queryEmbedding: number[];
+  let body: unknown;
 
   try {
-    queryEmbedding = await embedText(query, "RETRIEVAL_QUERY");
+    body = await readJsonBody(request, BODY_LIMITS.small);
   } catch (error) {
-    console.error("Failed to embed search query:", error);
-    return NextResponse.json(
-      { message: "Search isn't available right now. Check that GEMINI_API_KEY is set." },
-      { status: 503 },
-    );
+    if (error instanceof BodyTooLargeError) return bodyTooLarge();
+    throw error;
   }
 
-  const vectorLiteral = toVectorLiteral(queryEmbedding);
+  const parsed = searchSchema.safeParse(body);
 
-  const matches = await prisma.$queryRaw<MatchRow[]>`
-    SELECT id, type, title, description, "imageCaption", "imageMimeType", source, tags, "updatedAt",
-           1 - (embedding <=> ${vectorLiteral}::vector) AS similarity
-    FROM library_items
-    WHERE "ownerId" = ${user.id} AND embedding IS NOT NULL
-    ORDER BY embedding <=> ${vectorLiteral}::vector
-    LIMIT 8
-  `;
+  if (!parsed.success) {
+    return jsonError(firstIssueMessage(parsed.error), 400);
+  }
 
-  let answer: string;
+  const limited = await consumeRateLimit(RATE_LIMITS.searchByUser, user.id);
 
-  try {
-    answer = await answerFromMatches(
-      query,
-      matches.map((match) => ({
-        id: match.id,
-        title: match.title,
-        description: [match.description, match.imageCaption].filter(Boolean).join("\n"),
-        source: match.source,
-      })),
-    );
-  } catch (error) {
-    console.error("Failed to synthesize search answer:", error);
-    answer = "Found some matches, but couldn't generate a summary right now.";
+  if (!limited.ok) {
+    return tooManyRequests(limited);
+  }
+
+  const { query } = parsed.data;
+  const apiKey = await getUserGeminiKey(user.id);
+
+  let mode: SearchMode = "keyword";
+  let notice: string | null = apiKey
+    ? null
+    : "Add your Gemini API key in Settings to search by meaning, not just keywords.";
+  let matches: RankedMatch<MatchRow>[] = [];
+  const termCount = keywordTerms(query).length;
+
+  if (apiKey) {
+    try {
+      const vectorLiteral = toVectorLiteral(await embedText(apiKey, query, "RETRIEVAL_QUERY"));
+      // The keyword half runs in Postgres and costs no Gemini quota. It also
+      // covers items that have no vector (saved before a key was added, or
+      // whose embedding failed), so they don't silently disappear.
+      const [semantic, keyword] = await Promise.all([
+        semanticSearch(user.id, vectorLiteral),
+        keywordSearch(user.id, query),
+      ]);
+      matches = rankResults(semantic.rows, keyword, termCount, semantic.stats);
+      mode = "semantic";
+    } catch (error) {
+      if (error instanceof GeminiQuotaError) {
+        notice = "Your Gemini key's free quota is used up for now, so this is a keyword search. It resets daily.";
+      } else if (error instanceof GeminiKeyError) {
+        notice = "Google rejected your Gemini API key, so this is a keyword search. Update it in Settings.";
+      } else {
+        console.error("Semantic search failed:", error);
+        notice = "Smart search isn't available right now, so this is a keyword search.";
+      }
+    }
+  }
+
+  if (mode === "keyword") {
+    // Text-only ranking: no similarity, so tiers come from word matches alone.
+    matches = rankResults([], await keywordSearch(user.id, query), termCount, {
+      baseline: null,
+      total: 0,
+    });
   }
 
   return NextResponse.json({
-    answer,
-    matches: matches.map((match) => ({
+    mode,
+    notice,
+    // Only strong matches go to the model: weak ones would be noise in the answer.
+    canAnswer: Boolean(apiKey) && matches.some((match) => match.confidence === "strong"),
+    matches: matches.map(({ row: match, confidence }) => ({
       id: match.id,
       type: match.type,
       title: match.title,
@@ -84,6 +104,7 @@ export async function POST(request: Request) {
       imageMimeType: match.imageMimeType,
       updatedAt: match.updatedAt,
       similarity: match.similarity,
+      confidence,
     })),
   });
 }

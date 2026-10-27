@@ -14,9 +14,37 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // The user's own Gemini API key, AES-256-GCM encrypted (see src/lib/secret-box.ts).
+  // Null until they add one; AI features stay off without it.
+  geminiApiKeyEncrypted String?
+
   libraryItems LibraryItem[]
+  inviteCode   InviteCode?
 
   @@map("users")
+}
+
+// Sign-up is invite-only: each code can be redeemed by exactly one account.
+model InviteCode {
+  code      String    @id
+  usedById  String?   @unique
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  usedBy User? @relation(fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@map("invite_codes")
+}
+
+// Fixed-window counters. Kept in Postgres rather than memory so limits hold
+// across serverless instances and restarts.
+model RateLimit {
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@id([key, windowStart])
+  @@map("rate_limits")
 }
 
 model LibraryItem {
@@ -27,6 +55,9 @@ model LibraryItem {
   description String   @default("")
   source      String   @default("")
   tags        String[] @default([])
+  // Never shown: synonyms, broader topics and Turkish/English equivalents the
+  // model writes at save time, so searches match words the item doesn't use.
+  searchKeywords String[] @default([])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
