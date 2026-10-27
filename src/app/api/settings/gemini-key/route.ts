@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getRequestUser } from "@/lib/auth";
 import { encryptSecret } from "@/lib/secret-box";
@@ -8,15 +7,7 @@ import { maskApiKey } from "@/lib/gemini-key";
 import { BODY_LIMITS, BodyTooLargeError, bodyTooLarge, jsonError, readJsonBody, tooManyRequests, unauthorized } from "@/lib/http";
 import { RATE_LIMITS, consumeRateLimit } from "@/lib/rate-limit";
 import { firstIssueMessage } from "@/features/library/schema";
-
-const apiKeySchema = z.object({
-  apiKey: z
-    .string({ error: "API key is required" })
-    .trim()
-    .min(20, "That doesn't look like a Gemini API key")
-    .max(200, "That doesn't look like a Gemini API key")
-    .regex(/^[A-Za-z0-9_-]+$/, "That doesn't look like a Gemini API key"),
-});
+import { apiKeySchema } from "@/features/settings/schema";
 
 export async function PUT(request: Request) {
   const user = await getRequestUser();

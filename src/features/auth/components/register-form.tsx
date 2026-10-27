@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { apiPost } from "@/lib/api-client";
 import { PasswordInput } from "@/features/auth/components/password-input";
 import { registerFormSchema } from "@/features/auth/schema";
-import { z } from "zod";
+import { z } from "@/lib/zod";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -70,15 +70,15 @@ export function RegisterForm() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-surface px-5 py-10">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-8 px-5 py-10">
       <Link
         href="/"
         aria-label="Unlost home"
-        className="text-xl font-semibold tracking-tight"
+        className="font-display text-xl"
       >
-        unlost<span className="text-primary">.</span>
+        unlost.
       </Link>
-      <div className="w-full max-w-md border border-border bg-background p-8">
+      <div className="w-full max-w-md rounded-2xl border border-border p-8">
         <h1 className="font-display text-3xl">Create your account</h1>
         <p className="mt-2 text-sm text-muted">
           Unlost is invite-only for now. Enter the code you were given.
@@ -88,13 +88,14 @@ export function RegisterForm() {
           <label className="grid gap-1.5 text-sm font-medium">
             Invite code
             <input
+              name="inviteCode"
               value={inviteCode}
               onChange={(event) => setInviteCode(event.target.value)}
               required
               autoComplete="off"
               spellCheck={false}
               aria-invalid={Boolean(fieldsError.inviteCode)}
-              className="min-h-12 border border-border bg-white px-4 font-mono focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              className="min-h-12 rounded-xl border border-border px-4 font-mono focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldsError.inviteCode ? (
               <span className="text-sm font-normal text-red-600">
@@ -106,11 +107,12 @@ export function RegisterForm() {
           <label className="grid gap-1.5 text-sm font-medium">
             Name
             <input
+              name="name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
               autoComplete="name"
-              className="min-h-12 border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldsError.name ? (
               <span className="text-sm font-normal text-red-600">
@@ -123,11 +125,12 @@ export function RegisterForm() {
             Email
             <input
               type="email"
+              name="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
               autoComplete="username"
-              className="min-h-12 border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldsError.email ? (
               <span className="text-sm font-normal text-red-600">
@@ -139,12 +142,13 @@ export function RegisterForm() {
           <label className="grid gap-1.5 text-sm font-medium">
             Password
             <PasswordInput
+              name="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
               autoComplete="new-password"
               placeholder="At least 8 characters"
-              className="min-h-12 border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldsError.password ? (
               <span className="text-sm font-normal text-red-600">
@@ -155,12 +159,13 @@ export function RegisterForm() {
           <label className="grid gap-1.5 text-sm font-medium">
             Password Confirm
             <PasswordInput
+              name="passwordConfirm"
               value={passwordConfirm}
               onChange={(event) => setPasswordConfirm(event.target.value)}
               required
               autoComplete="new-password"
               placeholder="Repeat your password"
-              className="min-h-12 border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldsError.passwordConfirm ? (
               <span className="text-sm font-normal text-red-600">
@@ -178,7 +183,7 @@ export function RegisterForm() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="mt-2 bg-foreground px-6 py-3 text-white disabled:opacity-60"
+            className="mt-2 bg-foreground px-6 py-3 text-background disabled:opacity-60 rounded-xl"
           >
             {isSubmitting ? "Creating account..." : "Create account"}
           </button>
@@ -195,7 +200,7 @@ export function RegisterForm() {
 
         <p className="mt-3 text-sm text-muted">
           Already have an account?{" "}
-          <Link href="/login" className="font-semibold text-primary">
+          <Link href="/login" className="font-semibold underline underline-offset-4">
             Sign in
           </Link>
         </p>

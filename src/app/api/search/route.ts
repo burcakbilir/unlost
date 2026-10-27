@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/auth";
 import { GeminiKeyError, GeminiQuotaError, embedText, toVectorLiteral } from "@/lib/gemini";
 import { getUserGeminiKey } from "@/lib/gemini-key";
-import { MAX_MATCHES, keywordSearch, semanticSearch, type MatchRow } from "@/lib/library-search";
+import {
+  keywordSearch,
+  keywordTerms,
+  rankResults,
+  semanticSearch,
+  type MatchRow,
+  type RankedMatch,
+} from "@/lib/library-search";
 import { BODY_LIMITS, BodyTooLargeError, bodyTooLarge, jsonError, readJsonBody, tooManyRequests, unauthorized } from "@/lib/http";
 import { RATE_LIMITS, consumeRateLimit } from "@/lib/rate-limit";
 import { firstIssueMessage, searchSchema } from "@/features/library/schema";
@@ -47,16 +54,20 @@ export async function POST(request: Request) {
   let notice: string | null = apiKey
     ? null
     : "Add your Gemini API key in Settings to search by meaning, not just keywords.";
-  let matches: MatchRow[] = [];
+  let matches: RankedMatch<MatchRow>[] = [];
+  const termCount = keywordTerms(query).length;
 
   if (apiKey) {
     try {
       const vectorLiteral = toVectorLiteral(await embedText(apiKey, query, "RETRIEVAL_QUERY"));
-      const semantic = await semanticSearch(user.id, vectorLiteral);
-      // Items saved before a key was added (or whose embedding failed) have no
-      // vector; keyword-match those too so they don't silently disappear.
-      const unembedded = await keywordSearch(user.id, query, { onlyUnembedded: true });
-      matches = [...semantic, ...unembedded].slice(0, MAX_MATCHES);
+      // The keyword half runs in Postgres and costs no Gemini quota. It also
+      // covers items that have no vector (saved before a key was added, or
+      // whose embedding failed), so they don't silently disappear.
+      const [semantic, keyword] = await Promise.all([
+        semanticSearch(user.id, vectorLiteral),
+        keywordSearch(user.id, query),
+      ]);
+      matches = rankResults(semantic.rows, keyword, termCount, semantic.stats);
       mode = "semantic";
     } catch (error) {
       if (error instanceof GeminiQuotaError) {
@@ -71,14 +82,19 @@ export async function POST(request: Request) {
   }
 
   if (mode === "keyword") {
-    matches = await keywordSearch(user.id, query);
+    // Text-only ranking: no similarity, so tiers come from word matches alone.
+    matches = rankResults([], await keywordSearch(user.id, query), termCount, {
+      baseline: null,
+      total: 0,
+    });
   }
 
   return NextResponse.json({
     mode,
     notice,
-    canAnswer: Boolean(apiKey) && matches.length > 0,
-    matches: matches.map((match) => ({
+    // Only strong matches go to the model: weak ones would be noise in the answer.
+    canAnswer: Boolean(apiKey) && matches.some((match) => match.confidence === "strong"),
+    matches: matches.map(({ row: match, confidence }) => ({
       id: match.id,
       type: match.type,
       title: match.title,
@@ -88,6 +104,7 @@ export async function POST(request: Request) {
       imageMimeType: match.imageMimeType,
       updatedAt: match.updatedAt,
       similarity: match.similarity,
+      confidence,
     })),
   });
 }

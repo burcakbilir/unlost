@@ -1,30 +1,22 @@
-"use client";
-
 import Link from "next/link";
-import { useIsAuthenticated } from "@/features/landing/hooks/use-is-authenticated";
 
-export function FinalCtaSection() {
-  const isAuthenticated = useIsAuthenticated();
-
+export function FinalCtaSection({ isAuthenticated }: { isAuthenticated: boolean }) {
   return (
-    <section id="get-started" aria-labelledby="get-started-title" className="scroll-mt-24">
-      <div className="mx-auto max-w-6xl px-6 py-24 text-center sm:py-32">
-        <p className="text-xs uppercase tracking-widest">Save it today, find it later</p>
-        <h2 id="get-started-title" className="mx-auto mt-6 max-w-4xl font-display text-5xl leading-none tracking-tight sm:text-6xl lg:text-7xl">
-          Stop losing track of the things on your mind.
+    <section id="get-started" aria-labelledby="get-started-title" className="scroll-mt-24 px-6 pb-24">
+      <div className="mx-auto max-w-6xl rounded-3xl bg-foreground px-6 py-20 text-center text-background sm:py-24">
+        <h2 id="get-started-title" className="mx-auto max-w-2xl font-display text-4xl leading-tight sm:text-5xl">
+          Stop losing the things you meant to keep.
         </h2>
         <Link
           href={isAuthenticated ? "/dashboard" : "/register"}
-          className="mt-10 inline-block bg-accent px-7 py-4 font-medium transition-transform hover:-translate-y-0.5"
+          className="mt-9 inline-block rounded-xl bg-background px-6 py-3 font-medium text-foreground transition-opacity hover:opacity-90"
         >
-          {isAuthenticated ? "Go to dashboard" : "Start for free"}{" "}
-          <span aria-hidden="true">→</span>
+          {isAuthenticated ? "Open your library" : "Start saving"}
         </Link>
-
         {isAuthenticated ? null : (
-          <p className="mt-4 text-sm text-muted">
-            Already have an account?{" "}
-            <Link href="/login" className="font-semibold text-primary">
+          <p className="mt-4 text-sm text-background/60">
+            Have an account?{" "}
+            <Link href="/login" className="font-medium text-background underline underline-offset-4">
               Log in
             </Link>
           </p>

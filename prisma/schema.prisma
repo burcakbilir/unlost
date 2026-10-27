@@ -55,6 +55,9 @@ model LibraryItem {
   description String   @default("")
   source      String   @default("")
   tags        String[] @default([])
+  // Never shown: synonyms, broader topics and Turkish/English equivalents the
+  // model writes at save time, so searches match words the item doesn't use.
+  searchKeywords String[] @default([])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

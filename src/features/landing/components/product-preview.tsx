@@ -1,149 +1,119 @@
-type PreviewTone = "mint" | "lilac" | "peach";
+"use client";
 
-type PreviewItem = {
-  id: string;
-  type: string;
-  title: string;
-  description: string;
-  meta: string;
-  tone: PreviewTone;
-  symbol: string;
-};
+import { AskPanel } from "@/features/library/components/ask-panel";
+import { DashboardSidebar } from "@/features/library/components/dashboard-sidebar";
+import { LibraryCard } from "@/features/library/components/library-card";
+import { SearchIcon } from "@/features/library/components/icons";
+import type { LibraryItem } from "@/features/library/types";
 
-type PreviewCardProps = {
-  item: PreviewItem;
-};
+const DAY = 24 * 60 * 60 * 1000;
 
-const toneClasses: Record<PreviewTone, string> = {
-  mint: "bg-mint",
-  lilac: "bg-lilac",
-  peach: "bg-peach",
-};
+function daysAgo(days: number): string {
+  return new Date(Date.now() - days * DAY).toISOString();
+}
 
-const previewItems: PreviewItem[] = [
+// A small black-and-white "screenshot", so the image card shows an image
+// without shipping a photo or loading anything from another site.
+const sampleScreenshot = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#f6f6f6"/><rect x="28" y="28" width="150" height="16" rx="8" fill="#000"/><rect x="28" y="58" width="230" height="10" rx="5" fill="#c9c9c9"/><rect x="28" y="76" width="190" height="10" rx="5" fill="#c9c9c9"/><rect x="28" y="112" width="160" height="160" rx="14" fill="#000"/><rect x="204" y="112" width="168" height="74" rx="14" fill="#fff" stroke="#000" stroke-width="3"/><rect x="204" y="198" width="168" height="74" rx="14" fill="#e3e3e3"/><circle cx="108" cy="192" r="34" fill="#fff"/></svg>`,
+)}`;
+
+const sampleItems: (LibraryItem & { imageSrc?: string })[] = [
   {
-    id: "art-of-noticing",
-    type: "To read",
-    title: "The art of noticing",
-    description:
-      "Learn to notice the small details around you for better ideas.",
-    meta: "medium.com · 2 days ago",
-    tone: "mint",
-    symbol: "↗",
+    id: "sample-cafe",
+    type: "link",
+    title: "Quiet café with fast wifi",
+    description: "Plenty of outlets, calm in the afternoon. Good for deep work days.",
+    source: "https://maps.google.com",
+    tags: ["work", "cafe"],
+    imageMimeType: null,
+    createdAt: daysAgo(2),
+    updatedAt: daysAgo(2),
   },
   {
-    id: "quiet-workspaces",
-    type: "Idea",
-    title: "Quiet workspaces",
-    description:
-      "A filter for noise, outlets and internet quality could work for cafes.",
-    meta: "Quick note · 4 days ago",
-    tone: "lilac",
-    symbol: "✦",
+    id: "sample-dress",
+    type: "note",
+    title: "Red satin dress for the wedding",
+    description: "Seen at the boutique on the corner. Size 38, check again on Friday.",
+    source: "",
+    tags: ["wedding", "shopping"],
+    imageMimeType: null,
+    createdAt: daysAgo(5),
+    updatedAt: daysAgo(5),
   },
   {
-    id: "warm-interfaces",
-    type: "Inspiration",
-    title: "Warm minimal interfaces",
-    description: "Interface references that feel simple without going sterile.",
-    meta: "Screenshot · 1 week ago",
-    tone: "peach",
-    symbol: "◌",
+    id: "sample-dashboard",
+    type: "image",
+    title: "Clean dashboard layout",
+    description: "",
+    source: "",
+    tags: ["design"],
+    imageMimeType: "image/svg+xml",
+    createdAt: daysAgo(9),
+    updatedAt: daysAgo(9),
+    imageSrc: sampleScreenshot,
   },
 ];
 
-function PreviewCard({ item }: PreviewCardProps) {
-  return (
-    <article className="flex h-full flex-col bg-white/70 p-4">
-      <p className="text-xs uppercase tracking-widest">{item.type}</p>
-      <div
-        aria-hidden="true"
-        className={`mt-3 flex aspect-video items-start justify-end p-4 ${toneClasses[item.tone]}`}
-      >
-        <span className="font-display text-4xl">{item.symbol}</span>
-      </div>
-      <h3 className="mt-4 font-display text-xl">{item.title}</h3>
-      <p className="mt-2 text-sm leading-6 text-muted">{item.description}</p>
-      <p className="mt-auto pt-4 text-xs text-muted">{item.meta}</p>
-    </article>
-  );
-}
+const noop = () => {};
 
+// Built from the dashboard's own components (sidebar, Ask panel, cards), so
+// the landing page always shows the product as it really looks. It's inert:
+// visible, but not focusable or clickable.
 export function ProductPreview() {
   return (
-    <section
-      id="product-preview"
-      aria-labelledby="product-preview-title"
-      className="scroll-mt-24"
-    >
-      <div className="mx-auto max-w-6xl px-6 pb-24">
-        <div className="flex min-h-96 overflow-hidden border border-border bg-surface shadow-2xl">
-          <aside
-            aria-label="Example app menu"
-            className="flex w-12 shrink-0 flex-col items-center bg-sidebar py-4 text-white sm:w-16 sm:py-5"
-          >
-            <span className="font-display text-2xl italic">u.</span>
-            <span
-              aria-hidden="true"
-              className="mt-10 flex size-11 items-center justify-center bg-accent text-xl text-foreground"
-            >
-              +
-            </span>
-            <div className="mt-auto flex size-8 items-center justify-center rounded-full bg-primary text-xs">
-              JD
-            </div>
-          </aside>
+    <section id="product-preview" aria-labelledby="product-preview-title" className="scroll-mt-24">
+      <div className="mx-auto max-w-6xl px-6 pb-28">
+        <h2 id="product-preview-title" className="sr-only">
+          A look at the Unlost library
+        </h2>
+        <div className="overflow-hidden rounded-2xl border border-border shadow-[0_30px_80px_-30px_rgb(0_0_0/0.35)]">
+          <div className="flex items-center gap-2 border-b border-border px-4 py-3" aria-hidden="true">
+            <span className="size-2.5 rounded-full border border-border" />
+            <span className="size-2.5 rounded-full border border-border" />
+            <span className="size-2.5 rounded-full border border-border" />
+            <span className="ml-3 text-xs text-muted">unlost.app/dashboard</span>
+          </div>
 
-          <div className="min-w-0 flex-1 p-4 sm:p-8">
-            <header className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-widest">Good morning, John</p>
-                <h2
-                  id="product-preview-title"
-                  className="mt-2 font-display text-2xl sm:text-3xl"
-                >
-                  What do you want to remember today?
-                </h2>
+          <div inert aria-hidden="true" className="relative h-[560px] overflow-hidden md:flex">
+            <DashboardSidebar
+              embedded
+              user={{ name: "Ada Lovelace", email: "ada@example.com" }}
+              activeFilter="all"
+              counts={{ all: 24, link: 9, note: 10, image: 5 }}
+              onFilterChange={noop}
+              onNewItem={noop}
+              onOpenSettings={noop}
+              onSignOut={noop}
+            />
+            <div className="min-w-0 flex-1 px-6 py-7">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-sm text-muted">Good morning, Ada</p>
+                  <p className="mt-1 font-display text-3xl">All items</p>
+                </div>
+                <div className="hidden w-64 items-center gap-2 rounded-xl border border-border px-3.5 py-2.5 text-sm text-muted sm:flex">
+                  <SearchIcon className="size-4" />
+                  Filter by keyword
+                </div>
               </div>
-              <div
-                aria-hidden="true"
-                className="flex shrink-0 items-center gap-2 border border-border bg-white/40 px-3 py-2 text-sm text-muted"
-              >
-                <span>⌕</span>
-                <span className="hidden sm:inline">Search</span>
+              <div className="mt-5">
+                <AskPanel
+                  query="that red dress I saw for the wedding"
+                  onQueryChange={noop}
+                  onSubmit={noop}
+                  isAsking={false}
+                />
               </div>
-            </header>
-
-            <ul
-              aria-label="Example item filters"
-              className="mt-8 flex gap-6 overflow-x-auto border-b border-border text-sm text-muted"
-            >
-              <li className="shrink-0 border-b-2 border-foreground pb-3 text-foreground">All 24</li>
-              <li className="shrink-0 pb-3">Links 8</li>
-              <li className="shrink-0 pb-3">Notes 11</li>
-              <li className="shrink-0 pb-3">Images 5</li>
-            </ul>
-
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {previewItems.map((item) => (
-                <PreviewCard key={item.id} item={item} />
-              ))}
-            </div>
-
-            <div className="mt-4 flex flex-col gap-4 bg-sidebar p-4 text-white sm:flex-row sm:items-center">
-              <span
-                aria-hidden="true"
-                className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary"
-              >
-                ✦
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs uppercase tracking-widest text-white/60">Unlost reminder</p>
-                <p className="mt-1 font-display text-lg">You saved this 3 weeks ago</p>
-                <p className="mt-1 text-sm text-white/60">Micro-interaction examples for your portfolio</p>
+              <p className="mt-6 text-sm text-muted">24 items</p>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {sampleItems.map(({ imageSrc, ...item }) => (
+                  <LibraryCard key={item.id} item={item} imageSrc={imageSrc} onEdit={noop} onDelete={noop} />
+                ))}
               </div>
-              <span className="shrink-0 bg-accent px-4 py-3 text-sm text-foreground">Rediscover →</span>
             </div>
+            {/* Fade the cut-off bottom edge into the page. */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent" />
           </div>
         </div>
       </div>

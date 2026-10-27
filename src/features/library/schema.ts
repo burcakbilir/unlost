@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/zod";
 import { isSafeHttpUrl } from "@/lib/safe-url";
 import { CAPTURE_TYPES, LIMITS } from "@/features/library/constants";
 

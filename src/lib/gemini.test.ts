@@ -6,8 +6,54 @@ import {
   answerFromSources,
   embedText,
   normalizeTags,
+  removeInvalidCitations,
   validateGeminiApiKey,
 } from "@/lib/gemini";
+
+describe("removeInvalidCitations", () => {
+  it("keeps citations that point at a given item", () => {
+    expect(removeInvalidCitations("pgvector [1] ve Refactoring UI [2].", 2)).toBe(
+      "pgvector [1] ve Refactoring UI [2].",
+    );
+  });
+
+  it("drops citations to items that weren't given", () => {
+    expect(removeInvalidCitations("Bunu [1] ve [5] anlatıyor.", 2)).toBe("Bunu [1] ve anlatıyor.");
+    expect(removeInvalidCitations("Kayıt [0].", 2)).toBe("Kayıt.");
+  });
+});
+
+describe("embedding requests", () => {
+  it("sends the title for documents but not for queries", async () => {
+    const values = Array.from({ length: 768 }, () => 0.1);
+    const fetchMock = vi.fn().mockImplementation(
+      async () => new Response(JSON.stringify({ embedding: { values } }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await embedText("key", "body", "RETRIEVAL_DOCUMENT", { title: "Kart ödemesi" });
+    await embedText("key", "yazılım", "RETRIEVAL_QUERY", { title: "ignored" });
+
+    const bodies = fetchMock.mock.calls.map(([, init]) => JSON.parse((init as RequestInit).body as string));
+    expect(bodies[0].title).toBe("Kart ödemesi");
+    expect(bodies[1].title).toBeUndefined();
+  });
+});
+
+describe("answer generation settings", () => {
+  it("uses a low temperature and treats one-word input as a search", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "pgvector [1]" }] } }] })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await answerFromSources("key", "yazılım", [{ title: "pgvector", description: "d", source: "" }]);
+
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
+    expect(body.generationConfig.temperature).toBe(0.2);
+    expect(body.contents[0].parts[0].text).toContain("search words");
+  });
+});
 
 // No test here talks to Google: fetch is replaced, so the suite spends no quota.
 function mockFetch(...responses: Response[]) {
@@ -26,7 +72,11 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("analyzeItem", () => {
   it("gets tags and an image caption from a single request", async () => {
-    const fetchMock = mockFetch(generated('{"tags":["Design"," UI ","design"],"caption":"A blue dashboard."}'));
+    const fetchMock = mockFetch(
+      generated(
+        '{"tags":["Design"," UI ","design"],"keywords":["Arayüz","frontend","frontend"],"caption":"A blue dashboard."}',
+      ),
+    );
 
     const result = await analyzeItem("key", {
       title: "Dashboard idea",
@@ -35,7 +85,12 @@ describe("analyzeItem", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({ tags: ["design", "ui"], imageCaption: "A blue dashboard." });
+    expect(result).toEqual({
+      tags: ["design", "ui"],
+      keywords: ["arayüz", "frontend"],
+      questions: [],
+      imageCaption: "A blue dashboard.",
+    });
   });
 
   it("sends the user's key, never one from the server environment", async () => {

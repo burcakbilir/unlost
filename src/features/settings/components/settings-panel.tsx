@@ -6,6 +6,9 @@ import { apiDelete, apiPut } from "@/lib/api-client";
 
 export type GeminiKeyStatus = { masked: string } | null;
 
+// The heading that names the settings modal.
+export const SETTINGS_TITLE_ID = "settings-title";
+
 type SettingsPanelProps = {
   geminiKey: GeminiKeyStatus;
   onGeminiKeyChange: (status: GeminiKeyStatus) => void;
@@ -15,7 +18,7 @@ type SettingsPanelProps = {
 };
 
 const inputClassName =
-  "min-h-12 w-full border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary";
+  "min-h-12 w-full rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10";
 
 export function SettingsPanel({
   geminiKey,
@@ -92,16 +95,12 @@ export function SettingsPanel({
   }
 
   return (
-    <section
-      id="settings-panel"
-      aria-labelledby="settings-title"
-      className="mt-8 border border-border bg-background p-5 sm:p-8"
-    >
+    <div>
       <div className="flex items-start justify-between gap-4">
-        <h2 id="settings-title" className="font-display text-3xl">
+        <h2 id={SETTINGS_TITLE_ID} className="font-display text-3xl">
           Settings
         </h2>
-        <button type="button" onClick={onClose} className="border border-border px-4 py-2 text-sm">
+        <button type="button" onClick={onClose} className="border border-border px-4 py-2 text-sm rounded-xl">
           Close
         </button>
       </div>
@@ -142,10 +141,12 @@ export function SettingsPanel({
             <span className="sr-only">{geminiKey ? "Replace Gemini API key" : "Gemini API key"}</span>
             <input
               type="password"
+              name="geminiApiKey"
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
               autoComplete="off"
               spellCheck={false}
+              data-autofocus
               placeholder={geminiKey ? "Paste a new key to replace it" : "Paste your Gemini API key"}
               className={inputClassName}
             />
@@ -153,7 +154,7 @@ export function SettingsPanel({
           <button
             type="submit"
             disabled={isSavingKey || !apiKey.trim()}
-            className="bg-foreground px-6 py-3 text-white disabled:opacity-60"
+            className="bg-foreground px-6 py-3 text-background disabled:opacity-60 rounded-xl"
           >
             {isSavingKey ? "Checking..." : "Save key"}
           </button>
@@ -162,7 +163,7 @@ export function SettingsPanel({
               type="button"
               disabled={isSavingKey}
               onClick={() => void handleRemoveKey()}
-              className="border border-border px-6 py-3 disabled:opacity-60"
+              className="border border-border px-6 py-3 disabled:opacity-60 rounded-xl"
             >
               Remove
             </button>
@@ -190,6 +191,7 @@ export function SettingsPanel({
             <span className="sr-only">Confirm with your password</span>
             <input
               type="password"
+              name="currentPassword"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"
@@ -200,7 +202,7 @@ export function SettingsPanel({
           <button
             type="submit"
             disabled={isDeleting || !password}
-            className="bg-red-700 px-6 py-3 text-white disabled:opacity-60"
+            className="rounded-xl bg-red-700 px-6 py-3 text-white disabled:opacity-60"
           >
             {isDeleting ? "Deleting..." : "Delete account"}
           </button>
@@ -211,6 +213,6 @@ export function SettingsPanel({
           </p>
         ) : null}
       </div>
-    </section>
+    </div>
   );
 }

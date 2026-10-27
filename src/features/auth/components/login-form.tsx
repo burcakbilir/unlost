@@ -7,7 +7,7 @@ import { loginSchema } from "@/features/auth/schema";
 import { apiPost } from "@/lib/api-client";
 import Link from "next/link";
 import { PasswordInput } from "@/features/auth/components/password-input";
-import { z } from "zod";
+import { z } from "@/lib/zod";
 
 export function LoginForm() {
   const router = useRouter();
@@ -54,15 +54,15 @@ export function LoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-surface px-5 py-10">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-8 px-5 py-10">
       <Link
         href="/"
         aria-label="Unlost home"
-        className="text-xl font-semibold tracking-tight"
+        className="font-display text-xl"
       >
-        unlost<span className="text-primary">.</span>
+        unlost.
       </Link>
-      <div className="w-full max-w-md border border-border bg-background p-8">
+      <div className="w-full max-w-md rounded-2xl border border-border p-8">
         <h1 className="font-display text-3xl">Sign in</h1>
         <p className="mt-2 text-sm text-muted">
           Continue to your personal library.
@@ -73,11 +73,12 @@ export function LoginForm() {
             Email
             <input
               type="email"
+              name="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
               autoComplete="username"
-              className="min-h-12 border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldErrors.email ? (
               <span className="text-sm font-normal text-red-600">
@@ -89,11 +90,12 @@ export function LoginForm() {
           <label className="grid gap-1.5 text-sm font-medium">
             Password
             <PasswordInput
+              name="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
               autoComplete="current-password"
-              className="min-h-12 border border-border bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldErrors.password ? (
               <span className="text-sm font-normal text-red-600">
@@ -111,7 +113,7 @@ export function LoginForm() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="mt-2 bg-foreground px-6 py-3 text-white disabled:opacity-60"
+            className="mt-2 bg-foreground px-6 py-3 text-background disabled:opacity-60 rounded-xl"
           >
             {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
@@ -119,7 +121,7 @@ export function LoginForm() {
 
         <p className="mt-5 text-sm text-muted">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-semibold text-primary">
+          <Link href="/register" className="font-semibold underline underline-offset-4">
             Create one
           </Link>
         </p>

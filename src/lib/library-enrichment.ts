@@ -25,10 +25,13 @@ export async function enrichLibraryItem(
 ): Promise<void> {
   let imageCaption: string | null = null;
   let tags: string[] | null = null;
+  let keywords: string[] | null = null;
 
   try {
     const analysis = await analyzeItem(apiKey, { title, description, image });
     tags = analysis.tags;
+    // Questions are stored with the keywords: both are hidden search text.
+    keywords = [...analysis.keywords, ...analysis.questions];
     imageCaption = analysis.imageCaption;
   } catch (error) {
     console.error(`Failed to analyze library item ${id}:`, error);
@@ -45,14 +48,26 @@ export async function enrichLibraryItem(
 
   // imageCaption is never shown to the user — it only feeds search/tagging,
   // so the visible `description` stays exactly what the user typed (or empty).
-  const searchableText = [description, imageCaption].filter(Boolean).join("\n");
-  const content = `${title}\n${searchableText}`.trim();
+  // Tags go in too: they name the topic in general words ("finance",
+  // "software"), which is often exactly how people search later.
+  const content = [
+    title,
+    description,
+    imageCaption,
+    tags?.length ? `Topics: ${tags.join(", ")}` : null,
+    keywords?.length ? `Keywords: ${keywords.join(", ")}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
 
   let vectorLiteral: string | null = null;
 
   if (content) {
     try {
-      vectorLiteral = toVectorLiteral(await embedText(apiKey, content, "RETRIEVAL_DOCUMENT"));
+      vectorLiteral = toVectorLiteral(
+        await embedText(apiKey, content, "RETRIEVAL_DOCUMENT", { title }),
+      );
     } catch (error) {
       console.error(`Failed to embed library item ${id}:`, error);
     }
@@ -64,6 +79,7 @@ export async function enrichLibraryItem(
       where: { id, updatedAt: version },
       data: {
         ...(tags && { tags }),
+        ...(keywords && { searchKeywords: keywords }),
         ...(image && { imageCaption }),
         updatedAt: version,
       },

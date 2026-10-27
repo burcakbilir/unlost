@@ -25,6 +25,8 @@ export type SearchMatch = {
   updatedAt: string;
   // Null for keyword matches.
   similarity: number | null;
+  // "possible" matches are weaker signals; the UI folds them away.
+  confidence: "strong" | "possible";
 };
 
 export type SearchResponse = {

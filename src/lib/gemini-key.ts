@@ -20,7 +20,10 @@ export async function getUserGeminiKey(userId: string): Promise<string | null> {
   }
 }
 
-// Shown in settings so the user can recognize which key is saved.
+// The only form of the key that ever leaves the server: enough for the user to
+// recognize which key is saved (the last 4 characters, as GitHub and Stripe
+// show tokens), too little to use it. The prefix is left out on purpose too;
+// every Gemini key starts with the same "AIza", so it would only add noise.
 export function maskApiKey(apiKey: string): string {
-  return apiKey.length <= 8 ? "••••" : `${apiKey.slice(0, 4)}…${apiKey.slice(-4)}`;
+  return apiKey.length < 12 ? "••••" : `••••${apiKey.slice(-4)}`;
 }
