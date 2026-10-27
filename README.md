@@ -2,21 +2,26 @@
 
 A personal "save it, find it later" tool. Drop in links, notes, and screenshots the moment they catch your attention, then find them again weeks later by describing what you remember — not by scrolling back through everything you've saved.
 
+![Unlost landing page](docs/screenshots/landing.jpg)
+
 ![Unlost dashboard](docs/screenshots/dashboard.jpg)
 
 ## Why this exists
 
 Bookmark folders and screenshot camera rolls are where things go to be forgotten. Unlost is built around one idea: you shouldn't have to remember *where* you saved something, only roughly *what* it was about. That's the whole point of the "Ask your library" search — it's not keyword matching, it's semantic recall.
 
-![Ask your library answering a question about a saved note](docs/screenshots/ask-library.jpg)
+![Ask your library finding a saved note from a loosely worded question](docs/screenshots/ask-library.jpg)
 
-Ask something close to what you actually remember, and it finds the right item and answers using only what you've saved — it says so plainly when nothing matches, instead of guessing.
+Ask something close to what you actually remember ("what was that present idea for my mother") and it finds the right item, even when none of your words are in it. An optional AI summary answers using only what you've saved, cites each item, and says so plainly when nothing matches instead of guessing.
 
 ## What's technically interesting here
 
-- **Grounded, cited RAG search.** A saved item's title, description, and image caption are embedded with the Gemini Embedding API and stored in Postgres via `pgvector`. A question is embedded the same way and matched by cosine similarity, with a similarity floor so unrelated items are dropped. Writing an answer is a separate, opt-in step: the matches are handed to Gemini with an explicit instruction to answer only from what's given, cite the item number, and say so if nothing actually answers the question.
+- **Hybrid search, one request per query.** A query is embedded once with the Gemini Embedding API and compared against `pgvector` embeddings. In the same round trip, Postgres full-text search (with prefix matching) and `pg_trgm` typo tolerance run over the item text. The two rankings are merged with Reciprocal Rank Fusion, so results don't hinge on raw cosine scores, which bunch together for unrelated items.
+- **Relevance judged against your own library.** Instead of a fixed similarity cutoff, an item counts as a strong match only if it clearly stands out from the rest of the library for that query, or if the query's words appear in it. Vague queries therefore return nothing rather than noise, and weaker matches are folded away rather than hidden.
+- **Document expansion at save time.** When an item is saved, one Gemini call writes its tags plus hidden search keywords (synonyms, related fields, acronyms) and example questions it would answer. That's how a search for "rag" finds a note about a vector database that never uses the word, without spending an extra request per search.
+- **Grounded, cited answers.** The optional AI summary only sees strong matches, re-read server-side, with instructions to answer from them alone and cite each one. Citations to items that weren't given are stripped, and the answer is plain text.
 - **Bring your own key, so it stays free for everyone.** Each user adds their own free Gemini API key (encrypted at rest with AES-256-GCM). The app never spends shared quota, one heavy user can't exhaust it for others, and there's nothing to pay for. Without a key — or when a key's quota runs out — search falls back to a Postgres keyword search instead of failing.
-- **Quota-aware by design.** A search costs one embedding request; the AI answer only runs when asked. Tagging and image captioning share one generation request. Images are resized and compressed in the browser before upload.
+- **Quota-aware by design.** A search costs one embedding request; the AI answer only runs when asked. Tagging, keywords, example questions and image captioning share one generation request. Images are resized and compressed in the browser before upload.
 - **Image recall without exposing AI text to the user.** Upload a screenshot and leave the description blank — Gemini's vision model writes a caption for it. That caption is never shown in the UI; it lives in a field used only for embedding and tag generation, so what you see is what you wrote, not a paragraph the model invented.
 - **Background enrichment, not a blocking save.** Embedding and tagging happen after the response is already sent (via Next.js's `after()`), so saving an item stays fast instead of waiting on a live Gemini round trip.
 - **Single-service architecture, on purpose.** Frontend and API routes live in the same Next.js app rather than a separate backend — a deliberate choice after hitting real third-party-cookie issues on a two-service setup in an earlier project. Same-origin sidesteps that whole class of bug.
@@ -25,7 +30,7 @@ Ask something close to what you actually remember, and it finds the right item a
 
 ## Stack
 
-Next.js 16 (App Router, Route Handlers) · TypeScript · Prisma · PostgreSQL + pgvector · Google Gemini API (embeddings, RAG, vision captioning) · Tailwind CSS
+Next.js 16 (App Router, Route Handlers) · TypeScript · Prisma · PostgreSQL (pgvector, full-text search, pg_trgm) · Google Gemini API (embeddings, RAG, vision captioning) · Tailwind CSS · Vitest
 
 ## Running it locally
 
