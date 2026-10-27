@@ -2,15 +2,15 @@
 
 A personal "save it, find it later" tool. Drop in links, notes, and screenshots the moment they catch your attention, then find them again weeks later by describing what you remember — not by scrolling back through everything you've saved.
 
-![Unlost landing page](docs/screenshots/landing.jpg)
+![Unlost landing page](docs/screenshots/unlost-landing.jpg)
 
-![Unlost dashboard](docs/screenshots/dashboard.jpg)
+![Unlost dashboard](docs/screenshots/unlost-dashboard.jpg)
 
 ## Why this exists
 
 Bookmark folders and screenshot camera rolls are where things go to be forgotten. Unlost is built around one idea: you shouldn't have to remember *where* you saved something, only roughly *what* it was about. That's the whole point of the "Ask your library" search — it's not keyword matching, it's semantic recall.
 
-![Ask your library finding a saved note from a loosely worded question](docs/screenshots/ask-library.jpg)
+![Ask your library finding a saved note from a loosely worded question](docs/screenshots/unlost-ask-library.jpg)
 
 Ask something close to what you actually remember ("what was that present idea for my mother") and it finds the right item, even when none of your words are in it. An optional AI summary answers using only what you've saved, cites each item, and says so plainly when nothing matches instead of guessing.
 
