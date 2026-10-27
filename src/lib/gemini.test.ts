@@ -7,8 +7,23 @@ import {
   embedText,
   normalizeTags,
   removeInvalidCitations,
+  stripMarkdown,
   validateGeminiApiKey,
 } from "@/lib/gemini";
+
+describe("stripMarkdown", () => {
+  it("turns the model's markdown list into plain lines (real output)", () => {
+    const raw =
+      "The following items are about it: * **[1] Refactoring UI:** shades for every color. * **[2] Laws of UX:** psychology principles.";
+    expect(stripMarkdown(raw)).toBe(
+      "The following items are about it:\n• [1] Refactoring UI: shades for every color.\n• [2] Laws of UX: psychology principles.",
+    );
+  });
+
+  it("handles list markers at the start of lines", () => {
+    expect(stripMarkdown("Matches:\n* **[1]** A\n- [2] B")).toBe("Matches:\n• [1] A\n• [2] B");
+  });
+});
 
 describe("removeInvalidCitations", () => {
   it("keeps citations that point at a given item", () => {

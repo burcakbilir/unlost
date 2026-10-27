@@ -494,7 +494,9 @@ export function LibraryDashboard() {
                       <p className="mt-3 text-sm font-medium text-red-700">{answerError}</p>
                     ) : null}
                     {askAnswer ? (
-                      <p className="mt-4 rounded-xl border-l-2 border-foreground pl-4 leading-7">{askAnswer}</p>
+                      <p className="mt-4 whitespace-pre-line rounded-xl border-l-2 border-foreground pl-4 leading-7">
+                        {askAnswer}
+                      </p>
                     ) : null}
 
                     <ol className="mt-4 grid gap-3 sm:grid-cols-2">
