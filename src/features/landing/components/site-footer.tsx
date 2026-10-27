@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function SiteFooter() {
   return (
     <footer className="border-t border-border bg-background text-foreground">
@@ -6,7 +8,12 @@ export function SiteFooter() {
           unlost<span className="text-primary">.</span>
         </a>
         <p>Save. Organize. Rediscover.</p>
-        <p>© 2026 Unlost</p>
+        <p className="flex gap-4">
+          <Link href="/privacy" className="underline hover:text-foreground">
+            Privacy
+          </Link>
+          <span>© 2026 Unlost</span>
+        </p>
       </div>
     </footer>
   );

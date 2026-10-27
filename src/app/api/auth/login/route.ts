@@ -1,38 +1,54 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyPassword } from "@/lib/password";
+import { burnPasswordCheck, verifyPassword } from "@/lib/password";
 import { setSessionCookie } from "@/lib/auth-cookies";
-
-type LoginBody = {
-  email?: string;
-  password?: string;
-};
+import { BODY_LIMITS, BodyTooLargeError, bodyTooLarge, jsonError, readJsonBody, tooManyRequests } from "@/lib/http";
+import { RATE_LIMITS, clientIp, consumeRateLimits } from "@/lib/rate-limit";
+import { loginSchema } from "@/features/auth/schema";
+import { firstIssueMessage } from "@/features/library/schema";
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => null)) as LoginBody | null;
+  let body: unknown;
 
-  if (!body?.email || !body.password) {
-    return NextResponse.json(
-      { message: "Email and password are required" },
-      { status: 400 },
-    );
+  try {
+    body = await readJsonBody(request, BODY_LIMITS.small);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) return bodyTooLarge();
+    throw error;
   }
 
-  const email = body.email.trim().toLowerCase();
+  const parsed = loginSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return jsonError(firstIssueMessage(parsed.error), 400);
+  }
+
+  const { email, password } = parsed.data;
+
+  // Per-IP stops one machine guessing across many accounts; per-email stops
+  // many machines guessing one account's password.
+  const limited = await consumeRateLimits([
+    { rule: RATE_LIMITS.loginByIp, identifier: clientIp(request) },
+    { rule: RATE_LIMITS.loginByEmail, identifier: email },
+  ]);
+
+  if (!limited.ok) {
+    return tooManyRequests(limited);
+  }
+
   const user = await prisma.user.findUnique({ where: { email } });
 
-  // Same message whether the email is unknown or the password is wrong,
-  // so a caller can't use this endpoint to discover which emails exist.
-  const invalidCredentials = NextResponse.json(
-    { message: "Invalid email or password" },
-    { status: 401 },
-  );
+  // Same message — and, via burnPasswordCheck, the same timing — whether the
+  // email is unknown or the password is wrong, so this endpoint can't be used
+  // to discover which emails exist.
+  const invalidCredentials = jsonError("Invalid email or password", 401);
 
   if (!user) {
+    await burnPasswordCheck(password);
     return invalidCredentials;
   }
 
-  const isPasswordValid = await verifyPassword(body.password, user.passwordHash);
+  const isPasswordValid = await verifyPassword(password, user.passwordHash);
 
   if (!isPasswordValid) {
     return invalidCredentials;

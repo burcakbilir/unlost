@@ -4,14 +4,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api-client";
+import { apiDelete, apiGet, apiPatch, apiPost, isUnauthorizedError } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/format-relative-time";
+import { ALLOWED_IMAGE_TYPES, MAX_SOURCE_IMAGE_BYTES } from "@/features/library/constants";
+import { compressImage } from "@/features/library/compress-image";
+import { itemImageUrl } from "@/features/library/image-url";
 import type {
   CaptureType,
   LibraryFilter,
   LibraryItem,
-  SearchMatch,
+  SearchResponse,
 } from "@/features/library/types";
+import {
+  SettingsPanel,
+  type GeminiKeyStatus,
+} from "@/features/settings/components/settings-panel";
 
 type LibraryCardProps = {
   item: LibraryItem;
@@ -54,19 +61,9 @@ function isCaptureType(value: string): value is CaptureType {
   return value === "link" || value === "note" || value === "image";
 }
 
-const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
-const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
-
-// Below this, matches have consistently been unrelated noise in testing
-// (e.g. an unrelated note scoring ~0.56-0.60 against a dress query) while
-// genuinely relevant matches have scored 0.65+. The LLM's own citations in
-// the answer aren't fully reliable on short/vague queries, so a match is
-// shown if EITHER signal says it's relevant.
-const RELEVANT_SIMILARITY_THRESHOLD = 0.62;
-
 function LibraryCard({ item, onEdit, onDelete, isDeleting }: LibraryCardProps) {
   return (
-    <article className="flex h-full flex-col bg-white/70 p-4 transition-transform hover:-translate-y-1">
+    <article className="flex h-full flex-col bg-white/70 p-4 transition-transform motion-safe:hover:-translate-y-1">
       <p className="text-xs uppercase tracking-widest text-muted">
         {typeLabels[item.type]}
       </p>
@@ -76,8 +73,10 @@ function LibraryCard({ item, onEdit, onDelete, isDeleting }: LibraryCardProps) {
         {item.imageMimeType ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={`/api/library-items/${item.id}/image`}
-            alt=""
+            src={itemImageUrl(item)}
+            alt={item.title}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-contain"
           />
         ) : (
@@ -120,7 +119,7 @@ function LibraryCard({ item, onEdit, onDelete, isDeleting }: LibraryCardProps) {
           onClick={() => onEdit(item)}
           className="font-medium text-muted hover:text-foreground"
         >
-          Edit
+          Edit<span className="sr-only"> {item.title}</span>
         </button>
         <button
           type="button"
@@ -129,6 +128,7 @@ function LibraryCard({ item, onEdit, onDelete, isDeleting }: LibraryCardProps) {
           className="font-medium text-muted hover:text-red-600 disabled:opacity-60"
         >
           {isDeleting ? "Deleting..." : "Delete"}
+          <span className="sr-only"> {item.title}</span>
         </button>
       </div>
     </article>
@@ -178,13 +178,30 @@ export function LibraryDashboard() {
     fileName: string;
   } | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [askQuery, setAskQuery] = useState("");
-  const [askAnswer, setAskAnswer] = useState<string | null>(null);
-  const [askMatches, setAskMatches] = useState<SearchMatch[]>([]);
+  const [askResult, setAskResult] = useState<
+    (SearchResponse & { query: string }) | null
+  >(null);
   const [isAsking, setIsAsking] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
   const askRequestId = useRef(0);
+  const [askAnswer, setAskAnswer] = useState<string | null>(null);
+  const [isAnswering, setIsAnswering] = useState(false);
+  const [answerError, setAnswerError] = useState<string | null>(null);
+  const [geminiKey, setGeminiKey] = useState<GeminiKeyStatus>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // An expired or revoked session surfaces as a 401 from any request. Send the
+  // user to sign in (and back here afterwards) instead of showing "Unauthorized".
+  function handleApiError(error: unknown, fallback: string): string {
+    if (isUnauthorizedError(error)) {
+      router.replace("/login?next=/dashboard");
+      return "Your session has expired. Redirecting to sign in...";
+    }
+    return error instanceof Error ? error.message : fallback;
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -192,19 +209,18 @@ export function LibraryDashboard() {
     async function load() {
       try {
         const [meResponse, itemsResponse] = await Promise.all([
-          apiGet<{ user: CurrentUser }>("/api/auth/me"),
+          apiGet<{ user: CurrentUser; geminiKey: GeminiKeyStatus }>("/api/auth/me"),
           apiGet<{ items: LibraryItem[] }>("/api/library-items"),
         ]);
 
         if (isMounted) {
           setUser(meResponse.user);
+          setGeminiKey(meResponse.geminiKey);
           setItems(itemsResponse.items);
         }
       } catch (error) {
         if (isMounted) {
-          setLoadError(
-            error instanceof Error ? error.message : "Could not load your library",
-          );
+          setLoadError(handleApiError(error, "Could not load your library"));
         }
       } finally {
         if (isMounted) {
@@ -218,6 +234,8 @@ export function LibraryDashboard() {
     return () => {
       isMounted = false;
     };
+    // Runs once on mount; handleApiError only uses the stable router.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filterCounts = useMemo(() => {
@@ -245,24 +263,9 @@ export function LibraryDashboard() {
     });
   }, [activeFilter, items, query]);
 
-  const citedMatches = useMemo(() => {
-    if (!askAnswer) return [];
-
-    const citedIndexes = new Set(
-      Array.from(askAnswer.matchAll(/\[(\d+)\]/g), (match) => Number(match[1])),
-    );
-
-    return askMatches
-      .map((match, index) => ({ match, citation: index + 1 }))
-      .filter(
-        ({ match, citation }) =>
-          citedIndexes.has(citation) ||
-          match.similarity >= RELEVANT_SIMILARITY_THRESHOLD,
-      );
-  }, [askAnswer, askMatches]);
-
-  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  async function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.target;
+    const file = input.files?.[0];
     setImageError(null);
 
     if (!file) {
@@ -272,26 +275,28 @@ export function LibraryDashboard() {
 
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
       setImageError("Image must be PNG, JPEG, or WebP");
-      event.target.value = "";
+      input.value = "";
       return;
     }
 
-    if (file.size > MAX_IMAGE_BYTES) {
-      setImageError("Image must be smaller than 3MB");
-      event.target.value = "";
+    if (file.size > MAX_SOURCE_IMAGE_BYTES) {
+      setImageError("Image must be smaller than 20MB");
+      input.value = "";
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const base64 = dataUrl.split(",")[1] ?? "";
-      setImageFile({ dataUrl, base64, mimeType: file.type, fileName: file.name });
-    };
-    reader.onerror = () => {
-      setImageError("Could not read this file");
-    };
-    reader.readAsDataURL(file);
+    setIsProcessingImage(true);
+
+    try {
+      const compressed = await compressImage(file);
+      setImageFile({ ...compressed, fileName: file.name });
+    } catch (error) {
+      setImageFile(null);
+      setImageError(error instanceof Error ? error.message : "Could not read this file");
+      input.value = "";
+    } finally {
+      setIsProcessingImage(false);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -341,9 +346,7 @@ export function LibraryDashboard() {
       setIsComposerOpen(false);
       setEditingItem(null);
     } catch (error) {
-      setSaveError(
-        error instanceof Error ? error.message : "Could not save this item",
-      );
+      setSaveError(handleApiError(error, "Could not save this item"));
     } finally {
       setIsSaving(false);
     }
@@ -367,12 +370,21 @@ export function LibraryDashboard() {
       await apiDelete(`/api/library-items/${id}`);
       setItems((currentItems) => currentItems.filter((item) => item.id !== id));
     } catch (error) {
-      window.alert(
-        error instanceof Error ? error.message : "Could not delete this item",
-      );
+      const message = handleApiError(error, "Could not delete this item");
+      if (!isUnauthorizedError(error)) window.alert(message);
     } finally {
       setDeletingId(null);
     }
+  }
+
+  function resetAsk() {
+    askRequestId.current++;
+    setAskResult(null);
+    setAskError(null);
+    setAskAnswer(null);
+    setAnswerError(null);
+    setIsAsking(false);
+    setIsAnswering(false);
   }
 
   async function handleAsk(event: FormEvent<HTMLFormElement>) {
@@ -384,25 +396,23 @@ export function LibraryDashboard() {
 
     setIsAsking(true);
     setAskError(null);
+    setAskAnswer(null);
+    setAnswerError(null);
+    setIsAnswering(false);
 
     try {
-      const result = await apiPost<{ answer: string; matches: SearchMatch[] }>(
-        "/api/search",
-        { query: trimmedQuery },
-      );
+      const result = await apiPost<SearchResponse>("/api/search", {
+        query: trimmedQuery,
+      });
 
       if (requestId !== askRequestId.current) return;
 
-      setAskAnswer(result.answer);
-      setAskMatches(result.matches);
+      setAskResult({ ...result, query: trimmedQuery });
     } catch (error) {
       if (requestId !== askRequestId.current) return;
 
-      setAskAnswer(null);
-      setAskMatches([]);
-      setAskError(
-        error instanceof Error ? error.message : "Could not search your library",
-      );
+      setAskResult(null);
+      setAskError(handleApiError(error, "Could not search your library"));
     } finally {
       if (requestId === askRequestId.current) {
         setIsAsking(false);
@@ -410,8 +420,39 @@ export function LibraryDashboard() {
     }
   }
 
+  // Opt-in: the only search step that spends generation quota.
+  async function handleAnswer() {
+    if (!askResult || askResult.matches.length === 0) return;
+
+    const requestId = askRequestId.current;
+
+    setIsAnswering(true);
+    setAnswerError(null);
+
+    try {
+      const { answer } = await apiPost<{ answer: string }>("/api/search/answer", {
+        query: askResult.query,
+        itemIds: askResult.matches.map((match) => match.id),
+      });
+
+      if (requestId !== askRequestId.current) return;
+      setAskAnswer(answer);
+    } catch (error) {
+      if (requestId !== askRequestId.current) return;
+      setAnswerError(handleApiError(error, "Could not write an answer"));
+    } finally {
+      if (requestId === askRequestId.current) {
+        setIsAnswering(false);
+      }
+    }
+  }
+
   async function handleSignOut() {
-    await apiPost("/api/auth/logout", {});
+    try {
+      await apiPost("/api/auth/logout", {});
+    } catch {
+      // Signing out is best-effort: go to the login page either way.
+    }
     router.push("/login");
     router.refresh();
   }
@@ -441,9 +482,33 @@ export function LibraryDashboard() {
             setImageError(null);
             setIsComposerOpen((isOpen) => !isOpen);
           }}
-          className="mt-10 flex size-11 items-center justify-center bg-accent text-xl text-foreground transition-transform hover:-translate-y-0.5"
+          className="mt-10 flex size-11 items-center justify-center bg-accent text-xl text-foreground transition-transform motion-safe:hover:-translate-y-0.5"
         >
-          {isComposerOpen ? "×" : "+"}
+          <span aria-hidden="true">{isComposerOpen ? "×" : "+"}</span>
+          <span className="sr-only">{isComposerOpen ? "Close new item form" : "New item"}</span>
+        </button>
+        <button
+          type="button"
+          aria-expanded={isSettingsOpen}
+          aria-controls="settings-panel"
+          title="Settings"
+          onClick={() => setIsSettingsOpen((isOpen) => !isOpen)}
+          className="mt-4 flex size-11 items-center justify-center border border-white/20 text-white transition-transform motion-safe:hover:-translate-y-0.5"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="size-5"
+          >
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+          <span className="sr-only">Settings</span>
         </button>
         <div className="mt-auto flex flex-col items-center gap-3">
           <span
@@ -457,7 +522,7 @@ export function LibraryDashboard() {
             title="Sign out"
             aria-label="Sign out"
             onClick={() => void handleSignOut()}
-            className="flex size-9 items-center justify-center rounded-full bg-primary text-white transition-transform hover:-translate-y-0.5"
+            className="flex size-9 items-center justify-center rounded-full bg-primary text-white transition-transform motion-safe:hover:-translate-y-0.5"
           >
             <svg
               aria-hidden="true"
@@ -534,11 +599,7 @@ export function LibraryDashboard() {
                 onChange={(event) => {
                   const value = event.target.value;
                   setAskQuery(value);
-                  if (!value.trim()) {
-                    setAskAnswer(null);
-                    setAskMatches([]);
-                    setAskError(null);
-                  }
+                  if (!value.trim()) resetAsk();
                 }}
                 placeholder="What did I save about..."
                 className="min-h-12 w-full border border-white/20 bg-white px-4 text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
@@ -547,58 +608,108 @@ export function LibraryDashboard() {
             <button
               type="submit"
               disabled={isAsking || !askQuery.trim()}
-              className="bg-accent px-6 py-3 font-medium text-foreground transition-transform hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
+              className="bg-accent px-6 py-3 font-medium text-foreground transition-transform motion-safe:hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0"
             >
-              {isAsking ? "Thinking..." : "Ask"}
+              {isAsking ? "Searching..." : "Ask"}
             </button>
           </form>
 
-          {askError ? (
-            <p className="mt-4 text-sm text-red-300">{askError}</p>
-          ) : null}
+          {/* Announced to screen readers as results, answers and errors arrive. */}
+          <div aria-live="polite" aria-busy={isAsking || isAnswering}>
+            {askError ? (
+              <p className="mt-4 text-sm text-red-300">{askError}</p>
+            ) : null}
 
-          {askAnswer ? (
-            <div className="mt-5">
-              <p className="leading-7">{askAnswer}</p>
-              {citedMatches.length > 0 && (
-                <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {citedMatches.map(({ match, citation }) => (
-                    <li
-                      key={match.id}
-                      className="border border-white/20 bg-white/95 p-3 text-sm text-foreground"
-                    >
-                      <p className="text-xs text-muted">[{citation}]</p>
-                      {match.imageMimeType && (
-                        <div className="mt-1 flex max-h-56 items-center justify-center border border-border bg-surface">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={`/api/library-items/${match.id}/image`}
-                            alt=""
-                            className="max-h-56 w-full object-contain"
-                          />
-                        </div>
-                      )}
-                      <p className="mt-1 font-medium">{match.title}</p>
-                      {match.description && (
-                        <p className="mt-1 text-muted">{match.description}</p>
-                      )}
-                      {match.source && (
-                        <a
-                          href={match.source}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1 block truncate text-xs text-muted underline hover:text-foreground"
+            {askResult ? (
+              <div className="mt-5">
+                {askResult.notice ? (
+                  <p className="mb-3 text-sm text-white/70">{askResult.notice}</p>
+                ) : null}
+
+                {askResult.matches.length === 0 ? (
+                  <p className="leading-7">Nothing in your library looks related to that yet.</p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-sm text-white/70">
+                        {askResult.matches.length}{" "}
+                        {askResult.matches.length === 1 ? "match" : "matches"}
+                        {askResult.mode === "keyword" ? " by keyword" : ""}
+                      </p>
+                      {askResult.canAnswer && !askAnswer ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleAnswer()}
+                          disabled={isAnswering}
+                          className="border border-white/30 px-4 py-2 text-sm font-medium hover:bg-white/10 disabled:opacity-60"
                         >
-                          {match.source}
-                        </a>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ) : null}
+                          {isAnswering ? "Writing answer..." : "Summarize with AI"}
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {answerError ? (
+                      <p className="mt-3 text-sm text-red-300">{answerError}</p>
+                    ) : null}
+                    {askAnswer ? <p className="mt-4 leading-7">{askAnswer}</p> : null}
+
+                    <ol className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {askResult.matches.map((match, index) => (
+                        <li
+                          key={match.id}
+                          className="border border-white/20 bg-white/95 p-3 text-sm text-foreground"
+                        >
+                          <p className="text-xs text-muted" aria-hidden="true">
+                            [{index + 1}]
+                          </p>
+                          {match.imageMimeType && (
+                            <div className="mt-1 flex max-h-56 items-center justify-center border border-border bg-surface">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={itemImageUrl(match)}
+                                alt={match.title}
+                                loading="lazy"
+                                decoding="async"
+                                className="max-h-56 w-full object-contain"
+                              />
+                            </div>
+                          )}
+                          <p className="mt-1 font-medium">{match.title}</p>
+                          {match.description && (
+                            <p className="mt-1 line-clamp-4 text-muted">{match.description}</p>
+                          )}
+                          {match.source && (
+                            <a
+                              href={match.source}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-1 block truncate text-xs text-muted underline hover:text-foreground"
+                            >
+                              {match.source}
+                            </a>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  </>
+                )}
+              </div>
+            ) : null}
+          </div>
         </section>
+
+        {isSettingsOpen && (
+          <SettingsPanel
+            geminiKey={geminiKey}
+            onGeminiKeyChange={setGeminiKey}
+            onApiError={handleApiError}
+            onClose={() => setIsSettingsOpen(false)}
+            onAccountDeleted={() => {
+              router.replace("/");
+              router.refresh();
+            }}
+          />
+        )}
 
         {isComposerOpen && (
           <section
@@ -676,14 +787,21 @@ export function LibraryDashboard() {
                       className="hidden"
                     />
                   </div>
+                  {isProcessingImage ? (
+                    <p role="status" className="text-sm text-muted lg:col-span-2">
+                      Optimizing image...
+                    </p>
+                  ) : null}
                   {imageError ? (
-                    <p className="text-sm text-red-600 lg:col-span-2">{imageError}</p>
+                    <p role="alert" className="text-sm text-red-600 lg:col-span-2">
+                      {imageError}
+                    </p>
                   ) : null}
                   {imageFile ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={imageFile.dataUrl}
-                      alt="Selected preview"
+                      alt="Preview of the selected image"
                       className="max-h-48 w-auto border border-border object-contain lg:col-span-2"
                     />
                   ) : editingItem?.imageMimeType ? (
@@ -693,8 +811,8 @@ export function LibraryDashboard() {
                       </p>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={`/api/library-items/${editingItem.id}/image`}
-                        alt="Current"
+                        src={itemImageUrl(editingItem)}
+                        alt={`Current image for ${editingItem.title}`}
                         className="mt-1 max-h-48 w-auto border border-border object-contain"
                       />
                     </div>
@@ -711,18 +829,24 @@ export function LibraryDashboard() {
                   rows={4}
                   defaultValue={editingItem?.description}
                   className="resize-y border border-border bg-white px-4 py-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="Why do you want to keep this? (leave blank to let AI describe the image)"
+                  placeholder={
+                    composerType === "image" && geminiKey
+                      ? "Why do you want to keep this? (leave blank to let AI describe the image)"
+                      : "Why do you want to keep this?"
+                  }
                 />
               </label>
 
               {saveError ? (
-                <p className="text-sm text-red-600 lg:col-span-2">{saveError}</p>
+                <p role="alert" className="text-sm text-red-600 lg:col-span-2">
+                  {saveError}
+                </p>
               ) : null}
 
               <div className="flex flex-wrap gap-3 lg:col-span-2">
                 <button
                   type="submit"
-                  disabled={isSaving}
+                  disabled={isSaving || isProcessingImage}
                   className="bg-foreground px-6 py-3 text-white disabled:opacity-60"
                 >
                   {isSaving ? "Saving..." : editingItem ? "Update" : "Save"}

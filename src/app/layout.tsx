@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, Instrument_Serif } from "next/font/google";
+import { connection } from "next/server";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -27,7 +28,12 @@ export const metadata: Metadata = {
   ],
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // The CSP nonce from src/proxy.ts is per request, so pages must render per
+  // request too; a page prerendered at build time would carry no nonce and its
+  // scripts would be blocked.
+  await connection();
+
   return (
     <html
       lang="en"

@@ -12,6 +12,18 @@
         "3100"
       ],
       "port": 3100
+    },
+    {
+      "name": "unlost-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "start",
+        "--",
+        "--port",
+        "3101"
+      ],
+      "port": 3101
     }
   ]
 }

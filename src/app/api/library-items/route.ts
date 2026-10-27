@@ -1,35 +1,17 @@
 import { NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getRequestUser } from "@/lib/auth";
-import { enrichLibraryItem } from "@/lib/library-enrichment";
-import { isSafeHttpUrl } from "@/lib/safe-url";
-import { validateImageUpload } from "@/lib/image-upload";
-
-const captureTypes = ["link", "note", "image"] as const;
-
-function isCaptureType(
-  value: unknown,
-): value is (typeof captureTypes)[number] {
-  return typeof value === "string" && captureTypes.includes(value as never);
-}
-
-const itemSelect = {
-  id: true,
-  type: true,
-  title: true,
-  description: true,
-  source: true,
-  tags: true,
-  imageMimeType: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
+import { scheduleEnrichment } from "@/lib/library-enrichment";
+import { validateImageUpload, type ImageUpload } from "@/lib/image-upload";
+import { BODY_LIMITS, BodyTooLargeError, bodyTooLarge, jsonError, readJsonBody, tooManyRequests, unauthorized } from "@/lib/http";
+import { RATE_LIMITS, consumeRateLimit } from "@/lib/rate-limit";
+import { createItemSchema, firstIssueMessage, itemSelect } from "@/features/library/schema";
 
 export async function GET() {
   const user = await getRequestUser();
 
   if (!user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized();
   }
 
   const items = await prisma.libraryItem.findMany({
@@ -41,81 +23,61 @@ export async function GET() {
   return NextResponse.json({ items });
 }
 
-type CreateItemBody = {
-  type?: string;
-  title?: string;
-  description?: string;
-  source?: string;
-  image?: { data: string; mimeType: string };
-};
-
 export async function POST(request: Request) {
   const user = await getRequestUser();
 
   if (!user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized();
   }
 
-  const body = (await request.json().catch(() => null)) as CreateItemBody | null;
+  let body: unknown;
 
-  if (!body?.title?.trim()) {
-    return NextResponse.json({ message: "Title is required" }, { status: 400 });
+  try {
+    body = await readJsonBody(request, BODY_LIMITS.item);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) return bodyTooLarge();
+    throw error;
   }
 
-  if (body.type !== undefined && !isCaptureType(body.type)) {
-    return NextResponse.json({ message: "Invalid capture type" }, { status: 400 });
+  const parsed = createItemSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return jsonError(firstIssueMessage(parsed.error), 400);
   }
 
-  const source = body.source?.trim() ?? "";
+  const limited = await consumeRateLimit(RATE_LIMITS.writeByUser, user.id);
 
-  if (source && !isSafeHttpUrl(source)) {
-    return NextResponse.json(
-      { message: "Link must be a valid http(s) URL" },
-      { status: 400 },
-    );
+  if (!limited.ok) {
+    return tooManyRequests(limited);
   }
 
-  let imageBuffer: Uint8Array<ArrayBuffer> | undefined;
-  let imageMimeType: string | undefined;
+  const data = parsed.data;
+  let image: ImageUpload | undefined;
 
-  if (body.image) {
-    const validation = validateImageUpload(body.image);
+  if (data.image) {
+    const validation = validateImageUpload(data.image);
 
     if (!validation.ok) {
-      return NextResponse.json({ message: validation.error }, { status: 400 });
+      return jsonError(validation.error, 400);
     }
 
-    imageBuffer = new Uint8Array(
-      Buffer.from(validation.value.data, "base64"),
-    ) as Uint8Array<ArrayBuffer>;
-    imageMimeType = validation.value.mimeType;
+    image = validation.value;
   }
 
   const item = await prisma.libraryItem.create({
     data: {
       ownerId: user.id,
-      type: body.type ?? "note",
-      title: body.title.trim(),
-      description: body.description?.trim() ?? "",
-      source,
-      imageData: imageBuffer,
-      imageMimeType,
+      type: data.type,
+      title: data.title,
+      description: data.description,
+      source: data.source,
+      imageData: image?.bytes,
+      imageMimeType: image?.mimeType,
     },
     select: itemSelect,
   });
 
-  after(async () => {
-    try {
-      await enrichLibraryItem(
-        item.id,
-        item.title,
-        item.description,
-        body.image ? { data: body.image.data, mimeType: body.image.mimeType } : null,
-      );
-    } catch (error) {
-      console.error(`Failed to enrich library item ${item.id}:`, error);
-    }
-  });
+  await scheduleEnrichment(after, user.id, item, image ?? null);
 
   return NextResponse.json({ item }, { status: 201 });
 }
