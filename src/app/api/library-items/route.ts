@@ -55,6 +55,12 @@ export async function POST(request: Request) {
   let image: ImageUpload | undefined;
 
   if (data.image) {
+    // Same rule as PATCH: a note or link with an image would store a picture
+    // nobody can see that still feeds its caption into search.
+    if (data.type !== "image") {
+      return jsonError("Only image items can have an image", 400);
+    }
+
     const validation = validateImageUpload(data.image);
 
     if (!validation.ok) {

@@ -90,6 +90,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         // A new (or removed) image makes the old AI caption wrong; enrichment
         // writes a fresh one for a new image.
         imageCaption: image || dropsImage ? null : undefined,
+        // The hidden keywords describe the old content. Enrichment writes new
+        // ones; if it fails (or there's no key), stale ones would keep matching
+        // searches for text the item no longer has.
+        searchKeywords: contentChanged ? [] : undefined,
         // Enrichment treats a changed updatedAt as "superseded". Only edits that
         // schedule a fresh enrichment may bump it, or an in-flight run is dropped
         // with nothing to replace it.

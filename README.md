@@ -56,9 +56,9 @@ Open the invite link, create an account, then add your Gemini key (free, from ht
 
 ## Deploying (free: Vercel + Neon)
 
-1. **Database:** create a free project on [Neon](https://neon.tech). Copy its connection string (use the pooled one). pgvector is enabled by the first migration.
+1. **Database:** create a free project on [Neon](https://neon.tech). Copy two connection strings: the pooled one (for the app) and the direct one, with connection pooling turned off (for migrations). pgvector is enabled by the first migration.
 2. **App:** import the repo on [Vercel](https://vercel.com) (Hobby plan). Set **Build Command** to `npm run build:deploy` so migrations run on each deploy.
-3. **Environment variables** on Vercel: `DATABASE_URL`, `SESSION_SECRET`, `ENCRYPTION_KEY` — generate new production values, never reuse local ones. Keep `ENCRYPTION_KEY` safe: if it changes or is lost, saved Gemini keys can't be decrypted and users must re-enter them.
+3. **Environment variables** on Vercel: `DATABASE_URL` (pooled), `DIRECT_URL` (direct), `SESSION_SECRET`, `ENCRYPTION_KEY` — generate new production values, never reuse local ones. Keep `ENCRYPTION_KEY` safe: if it changes or is lost, saved Gemini keys can't be decrypted and users must re-enter them.
 4. **Invites:** from your machine, `DATABASE_URL=<neon url> APP_URL=<your vercel url> npm run invites -- 5`.
 
 Vercel's Hobby plan is for non-commercial use. Neon's free tier has limited storage; images are compressed before upload to stretch it.

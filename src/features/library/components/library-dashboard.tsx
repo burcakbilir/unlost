@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost, isUnauthorizedError } from "@/lib/api-client";
 import { ALLOWED_IMAGE_TYPES, MAX_SOURCE_IMAGE_BYTES } from "@/features/library/constants";
@@ -84,8 +84,24 @@ function getGreeting() {
   return "Good evening";
 }
 
+// The greeting depends on the visitor's clock, which the server doesn't know
+// (it runs in UTC). The server snapshot is null, so the server renders nothing
+// and the browser fills it in after hydration instead of mismatching.
+const subscribeToNothing = () => () => {};
+
+function useGreeting(): string | null {
+  return useSyncExternalStore(subscribeToNothing, getGreeting, () => null);
+}
+
+// JS lowercases "İ" to "i" plus a combining dot, so "istanbul" wouldn't find
+// "İstanbul". Dropping the dot makes both match.
+function foldCase(text: string): string {
+  return text.toLowerCase().replace(/̇/g, "");
+}
+
 export function LibraryDashboard() {
   const router = useRouter();
+  const greeting = useGreeting();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -175,16 +191,14 @@ export function LibraryDashboard() {
   }, [items]);
 
   const visibleItems = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery = foldCase(query.trim());
 
     return items.filter((item) => {
       const matchesFilter =
         activeFilter === "all" || item.type === activeFilter;
       const matchesQuery =
         normalizedQuery.length === 0 ||
-        `${item.title} ${item.description} ${item.source}`
-          .toLowerCase()
-          .includes(normalizedQuery);
+        foldCase(`${item.title} ${item.description} ${item.source}`).includes(normalizedQuery);
 
       return matchesFilter && matchesQuery;
     });
@@ -226,6 +240,22 @@ export function LibraryDashboard() {
     }
   }
 
+  // Ask results are a snapshot from search time. Keep them in step with edits
+  // and deletes, so a deleted item doesn't linger with a broken image. The AI
+  // answer cites items by position and quotes their old text, so it's dropped.
+  function syncAskResult(id: string, updated: LibraryItem | null) {
+    if (!askResult?.matches.some((match) => match.id === id)) return;
+
+    setAskResult({
+      ...askResult,
+      matches: updated
+        ? askResult.matches.map((match) => (match.id === id ? { ...match, ...updated } : match))
+        : askResult.matches.filter((match) => match.id !== id),
+    });
+    setAskAnswer(null);
+    setAnswerError(null);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -244,7 +274,9 @@ export function LibraryDashboard() {
     setIsSaving(true);
     setSaveError(null);
 
-    const image = imageFile
+    // A picked image stays in state if the user then switches to note or link;
+    // only image items send it (the API rejects an image on anything else).
+    const image = imageFile && type === "image"
       ? { data: imageFile.base64, mimeType: imageFile.mimeType }
       : undefined;
 
@@ -257,6 +289,7 @@ export function LibraryDashboard() {
         setItems((currentItems) =>
           currentItems.map((current) => (current.id === item.id ? item : current)),
         );
+        syncAskResult(item.id, item);
       } else {
         const { item } = await apiPost<{ item: LibraryItem }>(
           "/api/library-items",
@@ -313,6 +346,7 @@ export function LibraryDashboard() {
     try {
       await apiDelete(`/api/library-items/${id}`);
       setItems((currentItems) => currentItems.filter((item) => item.id !== id));
+      syncAskResult(id, null);
     } catch (error) {
       const message = handleApiError(error, "Could not delete this item");
       if (!isUnauthorizedError(error)) window.alert(message);
@@ -421,9 +455,9 @@ export function LibraryDashboard() {
         <div className="mx-auto max-w-6xl">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm text-muted">
-              {getGreeting()}
-              {user ? `, ${user.name.split(" ")[0]}` : ""}
+            <p className="min-h-5 text-sm text-muted">
+              {greeting}
+              {greeting && user ? `, ${user.name.split(" ")[0]}` : ""}
             </p>
             <h1 className="mt-1 font-display text-3xl sm:text-4xl">{filterLabel(activeFilter)}</h1>
           </div>
@@ -587,10 +621,11 @@ export function LibraryDashboard() {
                 </select>
               </label>
               <label className="grid gap-2 text-sm font-medium lg:col-span-2">
-                Link (optional)
+                {composerType === "link" ? "Link" : "Link (optional)"}
                 <input
                   name="source"
                   type="url"
+                  required={composerType === "link"}
                   defaultValue={editingItem?.source}
                   className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
                   placeholder="https://..."
