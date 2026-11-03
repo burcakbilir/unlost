@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost, isUnauthorizedError } from "@/lib/api-client";
 import { ALLOWED_IMAGE_TYPES, MAX_SOURCE_IMAGE_BYTES } from "@/features/library/constants";
@@ -11,7 +11,6 @@ import type {
   CaptureType,
   LibraryFilter,
   LibraryItem,
-  SearchMatch,
   SearchResponse,
 } from "@/features/library/types";
 import {
@@ -27,77 +26,17 @@ import {
   FilterChips,
   filterLabel,
 } from "@/features/library/components/dashboard-sidebar";
-import { LibraryCard, displayHost } from "@/features/library/components/library-card";
-
-// One search result in the Ask panel. `citation` is its [n] in an AI answer;
-// weaker matches have none because they're never sent to the model.
-function AskMatch({ match, citation }: { match: SearchMatch; citation?: number }) {
-  return (
-    <li className="rounded-xl border border-border p-3 text-sm">
-      {citation ? (
-        <p className="text-xs text-muted" aria-hidden="true">
-          [{citation}]
-        </p>
-      ) : null}
-      {match.imageMimeType && (
-        <div className="mt-1 flex max-h-56 items-center justify-center overflow-hidden rounded-lg bg-surface">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={itemImageUrl(match)}
-            alt={match.title}
-            loading="lazy"
-            decoding="async"
-            className="max-h-56 w-full object-contain"
-          />
-        </div>
-      )}
-      <p className="mt-1 font-medium">{match.title}</p>
-      {match.description && <p className="mt-1 line-clamp-4 text-muted">{match.description}</p>}
-      {match.source && (
-        <a
-          href={match.source}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 block truncate text-xs text-muted underline-offset-4 hover:underline"
-        >
-          {displayHost(match.source)}
-        </a>
-      )}
-    </li>
-  );
-}
-
-function isCaptureType(value: string): value is CaptureType {
-  return value === "link" || value === "note" || value === "image";
-}
+import { LibraryCard } from "@/features/library/components/library-card";
+import { AskMatch } from "@/features/library/components/ask-match";
+import { useGreeting } from "@/features/library/hooks/use-greeting";
+import { foldCase } from "@/features/library/fold-case";
+import { isCaptureType } from "@/features/library/capture-type";
 
 type CurrentUser = {
   id: string;
   name: string;
   email: string;
 };
-
-function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
-
-// The greeting depends on the visitor's clock, which the server doesn't know
-// (it runs in UTC). The server snapshot is null, so the server renders nothing
-// and the browser fills it in after hydration instead of mismatching.
-const subscribeToNothing = () => () => {};
-
-function useGreeting(): string | null {
-  return useSyncExternalStore(subscribeToNothing, getGreeting, () => null);
-}
-
-// JS lowercases "İ" to "i" plus a combining dot, so "istanbul" wouldn't find
-// "İstanbul". Dropping the dot makes both match.
-function foldCase(text: string): string {
-  return text.toLowerCase().replace(/̇/g, "");
-}
 
 export function LibraryDashboard() {
   const router = useRouter();
