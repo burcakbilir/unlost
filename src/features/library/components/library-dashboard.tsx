@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { apiDelete, apiGet, apiPatch, apiPost, isUnauthorizedError } from "@/lib/api-client";
+import { apiDelete, apiPatch, apiPost, isUnauthorizedError } from "@/lib/api-client";
 import { ALLOWED_IMAGE_TYPES, MAX_SOURCE_IMAGE_BYTES } from "@/features/library/constants";
 import { compressImage } from "@/features/library/compress-image";
 import { itemImageUrl } from "@/features/library/image-url";
@@ -13,11 +13,7 @@ import type {
   LibraryItem,
   SearchResponse,
 } from "@/features/library/types";
-import {
-  SETTINGS_TITLE_ID,
-  SettingsPanel,
-  type GeminiKeyStatus,
-} from "@/features/settings/components/settings-panel";
+import { SETTINGS_TITLE_ID, SettingsPanel } from "@/features/settings/components/settings-panel";
 import { Modal } from "@/components/modal";
 import { PlusIcon, SearchIcon, SparkleIcon } from "@/features/library/components/icons";
 import { AskPanel } from "@/features/library/components/ask-panel";
@@ -30,23 +26,16 @@ import { LibraryCard } from "@/features/library/components/library-card";
 import { AskMatch } from "@/features/library/components/ask-match";
 import { useGreeting } from "@/features/library/hooks/use-greeting";
 import { useApiErrorHandler } from "@/features/library/hooks/use-api-error-handler";
+import { useLibraryData } from "@/features/library/hooks/use-library-data";
 import { foldCase } from "@/features/library/fold-case";
 import { isCaptureType } from "@/features/library/capture-type";
-
-type CurrentUser = {
-  id: string;
-  name: string;
-  email: string;
-};
 
 export function LibraryDashboard() {
   const router = useRouter();
   const greeting = useGreeting();
   const handleApiError = useApiErrorHandler();
-  const [user, setUser] = useState<CurrentUser | null>(null);
-  const [items, setItems] = useState<LibraryItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const { user, items, setItems, isLoading, loadError, geminiKey, setGeminiKey } =
+    useLibraryData(handleApiError);
   const [activeFilter, setActiveFilter] = useState<LibraryFilter>("all");
   const [query, setQuery] = useState("");
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -74,43 +63,7 @@ export function LibraryDashboard() {
   const [askAnswer, setAskAnswer] = useState<string | null>(null);
   const [isAnswering, setIsAnswering] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
-  const [geminiKey, setGeminiKey] = useState<GeminiKeyStatus>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function load() {
-      try {
-        const [meResponse, itemsResponse] = await Promise.all([
-          apiGet<{ user: CurrentUser; geminiKey: GeminiKeyStatus }>("/api/auth/me"),
-          apiGet<{ items: LibraryItem[] }>("/api/library-items"),
-        ]);
-
-        if (isMounted) {
-          setUser(meResponse.user);
-          setGeminiKey(meResponse.geminiKey);
-          setItems(itemsResponse.items);
-        }
-      } catch (error) {
-        if (isMounted) {
-          setLoadError(handleApiError(error, "Could not load your library"));
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    void load();
-
-    return () => {
-      isMounted = false;
-    };
-    // Runs once on mount; handleApiError only uses the stable router.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const filterCounts = useMemo(() => {
     return {
