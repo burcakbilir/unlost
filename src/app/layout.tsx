@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
-import { connection } from "next/server";
 import "./globals.css";
 
 // One family for everything; headings differ by weight and tracking only.
@@ -24,12 +23,7 @@ export const metadata: Metadata = {
   ],
 };
 
-export default async function RootLayout({ children }: LayoutProps<"/">) {
-  // The CSP nonce from src/proxy.ts is per request, so pages must render per
-  // request too; a page prerendered at build time would carry no nonce and its
-  // scripts would be blocked.
-  await connection();
-
+export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
