@@ -29,6 +29,7 @@ import {
 import { LibraryCard } from "@/features/library/components/library-card";
 import { AskMatch } from "@/features/library/components/ask-match";
 import { useGreeting } from "@/features/library/hooks/use-greeting";
+import { useApiErrorHandler } from "@/features/library/hooks/use-api-error-handler";
 import { foldCase } from "@/features/library/fold-case";
 import { isCaptureType } from "@/features/library/capture-type";
 
@@ -41,6 +42,7 @@ type CurrentUser = {
 export function LibraryDashboard() {
   const router = useRouter();
   const greeting = useGreeting();
+  const handleApiError = useApiErrorHandler();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,16 +76,6 @@ export function LibraryDashboard() {
   const [answerError, setAnswerError] = useState<string | null>(null);
   const [geminiKey, setGeminiKey] = useState<GeminiKeyStatus>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  // An expired or revoked session surfaces as a 401 from any request. Send the
-  // user to sign in (and back here afterwards) instead of showing "Unauthorized".
-  function handleApiError(error: unknown, fallback: string): string {
-    if (isUnauthorizedError(error)) {
-      router.replace("/login?next=/dashboard");
-      return "Your session has expired. Redirecting to sign in...";
-    }
-    return error instanceof Error ? error.message : fallback;
-  }
 
   useEffect(() => {
     let isMounted = true;
