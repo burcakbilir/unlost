@@ -26,7 +26,7 @@ Ask something close to what you actually remember ("what was that present idea f
 - **Background enrichment, not a blocking save.** Embedding and tagging happen after the response is already sent (via Next.js's `after()`), so saving an item stays fast instead of waiting on a live Gemini round trip.
 - **Single-service architecture, on purpose.** Frontend and API routes live in the same Next.js app rather than a separate backend — a deliberate choice after hitting real third-party-cookie issues on a two-service setup in an earlier project. Same-origin sidesteps that whole class of bug.
 - **Genuinely zero ongoing cost.** Users' own free Gemini keys, a free-tier Postgres instance, free hosting, no paid services. The stack was chosen around that constraint, not despite it.
-- **Hardened for real users.** Invite-only sign-up, Postgres-backed rate limits, request size limits, a per-request nonce Content-Security-Policy, timing-safe login, account deletion, and unit tests that mock Gemini so the suite spends no quota (`npm test`).
+- **Hardened for real users.** Invite-only sign-up, Postgres-backed rate limits, request size limits, a Content-Security-Policy, timing-safe login, account deletion, and unit tests that mock Gemini so the suite spends no quota (`npm test`).
 
 ## Stack
 
