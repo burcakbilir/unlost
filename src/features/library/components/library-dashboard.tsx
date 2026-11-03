@@ -2,15 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import type { ChangeEvent, FormEvent } from "react";
-import { apiPatch, apiPost } from "@/lib/api-client";
-import { ALLOWED_IMAGE_TYPES, MAX_SOURCE_IMAGE_BYTES } from "@/features/library/constants";
-import { compressImage } from "@/features/library/compress-image";
+import { apiPost } from "@/lib/api-client";
 import { itemImageUrl } from "@/features/library/image-url";
-import type {
-  CaptureType,
-  LibraryItem,
-} from "@/features/library/types";
+import type { CaptureType } from "@/features/library/types";
 import { SETTINGS_TITLE_ID, SettingsPanel } from "@/features/settings/components/settings-panel";
 import { Modal } from "@/components/modal";
 import { PlusIcon, SearchIcon, SparkleIcon } from "@/features/library/components/icons";
@@ -28,7 +22,7 @@ import { useLibraryData } from "@/features/library/hooks/use-library-data";
 import { useLibraryFilters } from "@/features/library/hooks/use-library-filters";
 import { useAsk } from "@/features/library/hooks/use-ask";
 import { useDeleteItem } from "@/features/library/hooks/use-delete-item";
-import { isCaptureType } from "@/features/library/capture-type";
+import { useItemComposer } from "@/features/library/hooks/use-item-composer";
 
 export function LibraryDashboard() {
   const router = useRouter();
@@ -43,139 +37,19 @@ export function LibraryDashboard() {
     setItems((currentItems) => currentItems.filter((item) => item.id !== id));
     ask.syncItem(id, null);
   });
-  const [isComposerOpen, setIsComposerOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<LibraryItem | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [composerType, setComposerType] = useState<CaptureType>("note");
-  const [imageFile, setImageFile] = useState<{
-    dataUrl: string;
-    base64: string;
-    mimeType: string;
-    fileName: string;
-  } | null>(null);
-  const [imageError, setImageError] = useState<string | null>(null);
-  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const composer = useItemComposer(handleApiError, (item, wasEditing) => {
+    if (wasEditing) {
+      setItems((currentItems) =>
+        currentItems.map((current) => (current.id === item.id ? item : current)),
+      );
+      ask.syncItem(item.id, item);
+    } else {
+      setItems((currentItems) => [item, ...currentItems]);
+    }
+    setActiveFilter("all");
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  async function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
-    const input = event.target;
-    const file = input.files?.[0];
-    setImageError(null);
-
-    if (!file) {
-      setImageFile(null);
-      return;
-    }
-
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      setImageError("Image must be PNG, JPEG, or WebP");
-      input.value = "";
-      return;
-    }
-
-    if (file.size > MAX_SOURCE_IMAGE_BYTES) {
-      setImageError("Image must be smaller than 20MB");
-      input.value = "";
-      return;
-    }
-
-    setIsProcessingImage(true);
-
-    try {
-      const compressed = await compressImage(file);
-      setImageFile({ ...compressed, fileName: file.name });
-    } catch (error) {
-      setImageFile(null);
-      setImageError(error instanceof Error ? error.message : "Could not read this file");
-      input.value = "";
-    } finally {
-      setIsProcessingImage(false);
-    }
-  }
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    const title = String(formData.get("title") ?? "").trim();
-    const description = String(formData.get("description") ?? "").trim();
-    const source = String(formData.get("source") ?? "").trim();
-    const rawType = String(formData.get("type") ?? "note");
-    const type: CaptureType = isCaptureType(rawType) ? rawType : "note";
-    const hasImage =
-      composerType === "image" &&
-      (Boolean(imageFile) || Boolean(editingItem?.imageMimeType));
-
-    if (!title || (!description && !hasImage)) return;
-
-    setIsSaving(true);
-    setSaveError(null);
-
-    // A picked image stays in state if the user then switches to note or link;
-    // only image items send it (the API rejects an image on anything else).
-    const image = imageFile && type === "image"
-      ? { data: imageFile.base64, mimeType: imageFile.mimeType }
-      : undefined;
-
-    try {
-      if (editingItem) {
-        const { item } = await apiPatch<{ item: LibraryItem }>(
-          `/api/library-items/${editingItem.id}`,
-          { type, title, description, source, image },
-        );
-        setItems((currentItems) =>
-          currentItems.map((current) => (current.id === item.id ? item : current)),
-        );
-        ask.syncItem(item.id, item);
-      } else {
-        const { item } = await apiPost<{ item: LibraryItem }>(
-          "/api/library-items",
-          { type, title, description, source, image },
-        );
-        setItems((currentItems) => [item, ...currentItems]);
-      }
-
-      setImageFile(null);
-      setImageError(null);
-
-      form.reset();
-      setActiveFilter("all");
-      setIsComposerOpen(false);
-      setEditingItem(null);
-    } catch (error) {
-      setSaveError(handleApiError(error, "Could not save this item"));
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  function openNewItem() {
-    setEditingItem(null);
-    setComposerType("note");
-    setSaveError(null);
-    setImageFile(null);
-    setImageError(null);
-    setIsComposerOpen(true);
-  }
-
-  function closeComposer() {
-    setIsComposerOpen(false);
-    setEditingItem(null);
-    setComposerType("note");
-    setImageFile(null);
-    setImageError(null);
-  }
-
-  function handleEdit(item: LibraryItem) {
-    setEditingItem(item);
-    setComposerType(item.type);
-    setSaveError(null);
-    setImageFile(null);
-    setImageError(null);
-    setIsComposerOpen(true);
-  }
 
   async function handleSignOut() {
     try {
@@ -194,7 +68,7 @@ export function LibraryDashboard() {
         activeFilter={activeFilter}
         counts={filterCounts}
         onFilterChange={setActiveFilter}
-        onNewItem={openNewItem}
+        onNewItem={composer.openNew}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onSignOut={() => void handleSignOut()}
       />
@@ -326,17 +200,17 @@ export function LibraryDashboard() {
         {/* closedBy="closerequest": Esc closes it, but a stray click outside
             doesn't throw away a half-written item. */}
         <Modal
-          open={isComposerOpen}
-          onClose={closeComposer}
+          open={composer.isOpen}
+          onClose={composer.close}
           labelledBy="capture-composer-title"
           closedBy="closerequest"
         >
             <h2 id="capture-composer-title" className="font-display text-3xl">
-              {editingItem ? "Edit item" : "Save something new"}
+              {composer.editingItem ? "Edit item" : "Save something new"}
             </h2>
             <form
-              key={editingItem?.id ?? "new"}
-              onSubmit={(event) => void handleSubmit(event)}
+              key={composer.editingItem?.id ?? "new"}
+              onSubmit={(event) => void composer.handleSubmit(event)}
               className="mt-6 grid gap-5 lg:grid-cols-2"
             >
               <label className="grid gap-2 text-sm font-medium">
@@ -345,7 +219,7 @@ export function LibraryDashboard() {
                   name="title"
                   required
                   data-autofocus
-                  defaultValue={editingItem?.title}
+                  defaultValue={composer.editingItem?.title}
                   className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
                   placeholder="What do you want to remember?"
                 />
@@ -354,9 +228,9 @@ export function LibraryDashboard() {
                 Type
                 <select
                   name="type"
-                  value={composerType}
+                  value={composer.type}
                   onChange={(event) =>
-                    setComposerType(event.target.value as CaptureType)
+                    composer.setType(event.target.value as CaptureType)
                   }
                   className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
                 >
@@ -366,17 +240,17 @@ export function LibraryDashboard() {
                 </select>
               </label>
               <label className="grid gap-2 text-sm font-medium lg:col-span-2">
-                {composerType === "link" ? "Link" : "Link (optional)"}
+                {composer.type === "link" ? "Link" : "Link (optional)"}
                 <input
                   name="source"
                   type="url"
-                  required={composerType === "link"}
-                  defaultValue={editingItem?.source}
+                  required={composer.type === "link"}
+                  defaultValue={composer.editingItem?.source}
                   className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
                   placeholder="https://..."
                 />
               </label>
-              {composerType === "image" && (
+              {composer.type === "image" && (
                 <>
                   <div className="grid gap-2 text-sm font-medium lg:col-span-2">
                     <span>Image (optional)</span>
@@ -389,8 +263,8 @@ export function LibraryDashboard() {
                         Choose file
                       </button>
                       <span className="truncate text-sm text-muted">
-                        {imageFile?.fileName ??
-                          (editingItem?.imageMimeType
+                        {composer.imageFile?.fileName ??
+                          (composer.editingItem?.imageMimeType
                             ? "Current image on file"
                             : "No file chosen")}
                       </span>
@@ -400,36 +274,36 @@ export function LibraryDashboard() {
                       type="file"
                       name="image"
                       accept="image/png,image/jpeg,image/webp"
-                      onChange={handleImageChange}
+                      onChange={composer.handleImageChange}
                       className="hidden"
                     />
                   </div>
-                  {isProcessingImage ? (
+                  {composer.isProcessingImage ? (
                     <p role="status" className="text-sm text-muted lg:col-span-2">
                       Optimizing image...
                     </p>
                   ) : null}
-                  {imageError ? (
+                  {composer.imageError ? (
                     <p role="alert" className="text-sm text-red-600 lg:col-span-2">
-                      {imageError}
+                      {composer.imageError}
                     </p>
                   ) : null}
-                  {imageFile ? (
+                  {composer.imageFile ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={imageFile.dataUrl}
+                      src={composer.imageFile.dataUrl}
                       alt="Preview of the selected image"
                       className="max-h-48 w-auto border border-border object-contain lg:col-span-2"
                     />
-                  ) : editingItem?.imageMimeType ? (
+                  ) : composer.editingItem?.imageMimeType ? (
                     <div className="lg:col-span-2">
                       <p className="text-xs text-muted">
                         Current image — choose a new file to replace it
                       </p>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={itemImageUrl(editingItem)}
-                        alt={`Current image for ${editingItem.title}`}
+                        src={itemImageUrl(composer.editingItem)}
+                        alt={`Current image for ${composer.editingItem.title}`}
                         className="mt-1 max-h-48 w-auto border border-border object-contain"
                       />
                     </div>
@@ -441,36 +315,36 @@ export function LibraryDashboard() {
                 <textarea
                   name="description"
                   required={
-                    !(composerType === "image" && (imageFile || editingItem?.imageMimeType))
+                    !(composer.type === "image" && (composer.imageFile || composer.editingItem?.imageMimeType))
                   }
                   rows={4}
-                  defaultValue={editingItem?.description}
+                  defaultValue={composer.editingItem?.description}
                   className="resize-y rounded-xl border border-border px-4 py-3 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
                   placeholder={
-                    composerType === "image" && geminiKey
+                    composer.type === "image" && geminiKey
                       ? "Why do you want to keep this? (leave blank to let AI describe the image)"
                       : "Why do you want to keep this?"
                   }
                 />
               </label>
 
-              {saveError ? (
+              {composer.saveError ? (
                 <p role="alert" className="text-sm text-red-600 lg:col-span-2">
-                  {saveError}
+                  {composer.saveError}
                 </p>
               ) : null}
 
               <div className="flex flex-wrap gap-3 lg:col-span-2">
                 <button
                   type="submit"
-                  disabled={isSaving || isProcessingImage}
+                  disabled={composer.isSaving || composer.isProcessingImage}
                   className="bg-foreground px-6 py-3 text-background disabled:opacity-60 rounded-xl"
                 >
-                  {isSaving ? "Saving..." : editingItem ? "Update" : "Save"}
+                  {composer.isSaving ? "Saving..." : composer.editingItem ? "Update" : "Save"}
                 </button>
                 <button
                   type="button"
-                  onClick={closeComposer}
+                  onClick={composer.close}
                   className="border border-border px-6 py-3 rounded-xl"
                 >
                   Cancel
@@ -507,7 +381,7 @@ export function LibraryDashboard() {
                     <LibraryCard
                       key={item.id}
                       item={item}
-                      onEdit={handleEdit}
+                      onEdit={composer.openEdit}
                       onDelete={(id) => void handleDelete(id)}
                       isDeleting={deletingId === item.id}
                     />
@@ -522,7 +396,7 @@ export function LibraryDashboard() {
                   <button
                     type="button"
                     aria-haspopup="dialog"
-                    onClick={openNewItem}
+                    onClick={composer.openNew}
                     className="mt-6 inline-flex items-center gap-2 rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-background"
                   >
                     <PlusIcon className="size-5" />
