@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { apiDelete, apiPatch, apiPost, isUnauthorizedError } from "@/lib/api-client";
+import { apiPatch, apiPost } from "@/lib/api-client";
 import { ALLOWED_IMAGE_TYPES, MAX_SOURCE_IMAGE_BYTES } from "@/features/library/constants";
 import { compressImage } from "@/features/library/compress-image";
 import { itemImageUrl } from "@/features/library/image-url";
@@ -27,6 +27,7 @@ import { useApiErrorHandler } from "@/features/library/hooks/use-api-error-handl
 import { useLibraryData } from "@/features/library/hooks/use-library-data";
 import { useLibraryFilters } from "@/features/library/hooks/use-library-filters";
 import { useAsk } from "@/features/library/hooks/use-ask";
+import { useDeleteItem } from "@/features/library/hooks/use-delete-item";
 import { isCaptureType } from "@/features/library/capture-type";
 
 export function LibraryDashboard() {
@@ -38,11 +39,14 @@ export function LibraryDashboard() {
   const { activeFilter, setActiveFilter, query, setQuery, filterCounts, visibleItems } =
     useLibraryFilters(items);
   const ask = useAsk(handleApiError);
+  const { deletingId, handleDelete } = useDeleteItem(handleApiError, (id) => {
+    setItems((currentItems) => currentItems.filter((item) => item.id !== id));
+    ask.syncItem(id, null);
+  });
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<LibraryItem | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [composerType, setComposerType] = useState<CaptureType>("note");
   const [imageFile, setImageFile] = useState<{
     dataUrl: string;
@@ -171,23 +175,6 @@ export function LibraryDashboard() {
     setImageFile(null);
     setImageError(null);
     setIsComposerOpen(true);
-  }
-
-  async function handleDelete(id: string) {
-    if (!window.confirm("Delete this item? This can't be undone.")) return;
-
-    setDeletingId(id);
-
-    try {
-      await apiDelete(`/api/library-items/${id}`);
-      setItems((currentItems) => currentItems.filter((item) => item.id !== id));
-      ask.syncItem(id, null);
-    } catch (error) {
-      const message = handleApiError(error, "Could not delete this item");
-      if (!isUnauthorizedError(error)) window.alert(message);
-    } finally {
-      setDeletingId(null);
-    }
   }
 
   async function handleSignOut() {
