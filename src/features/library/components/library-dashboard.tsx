@@ -10,7 +10,6 @@ import { itemImageUrl } from "@/features/library/image-url";
 import type {
   CaptureType,
   LibraryItem,
-  SearchResponse,
 } from "@/features/library/types";
 import { SETTINGS_TITLE_ID, SettingsPanel } from "@/features/settings/components/settings-panel";
 import { Modal } from "@/components/modal";
@@ -27,6 +26,7 @@ import { useGreeting } from "@/features/library/hooks/use-greeting";
 import { useApiErrorHandler } from "@/features/library/hooks/use-api-error-handler";
 import { useLibraryData } from "@/features/library/hooks/use-library-data";
 import { useLibraryFilters } from "@/features/library/hooks/use-library-filters";
+import { useAsk } from "@/features/library/hooks/use-ask";
 import { isCaptureType } from "@/features/library/capture-type";
 
 export function LibraryDashboard() {
@@ -37,6 +37,7 @@ export function LibraryDashboard() {
     useLibraryData(handleApiError);
   const { activeFilter, setActiveFilter, query, setQuery, filterCounts, visibleItems } =
     useLibraryFilters(items);
+  const ask = useAsk(handleApiError);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<LibraryItem | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -52,16 +53,6 @@ export function LibraryDashboard() {
   const [imageError, setImageError] = useState<string | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [askQuery, setAskQuery] = useState("");
-  const [askResult, setAskResult] = useState<
-    (SearchResponse & { query: string }) | null
-  >(null);
-  const [isAsking, setIsAsking] = useState(false);
-  const [askError, setAskError] = useState<string | null>(null);
-  const askRequestId = useRef(0);
-  const [askAnswer, setAskAnswer] = useState<string | null>(null);
-  const [isAnswering, setIsAnswering] = useState(false);
-  const [answerError, setAnswerError] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   async function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
@@ -100,22 +91,6 @@ export function LibraryDashboard() {
     }
   }
 
-  // Ask results are a snapshot from search time. Keep them in step with edits
-  // and deletes, so a deleted item doesn't linger with a broken image. The AI
-  // answer cites items by position and quotes their old text, so it's dropped.
-  function syncAskResult(id: string, updated: LibraryItem | null) {
-    if (!askResult?.matches.some((match) => match.id === id)) return;
-
-    setAskResult({
-      ...askResult,
-      matches: updated
-        ? askResult.matches.map((match) => (match.id === id ? { ...match, ...updated } : match))
-        : askResult.matches.filter((match) => match.id !== id),
-    });
-    setAskAnswer(null);
-    setAnswerError(null);
-  }
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -149,7 +124,7 @@ export function LibraryDashboard() {
         setItems((currentItems) =>
           currentItems.map((current) => (current.id === item.id ? item : current)),
         );
-        syncAskResult(item.id, item);
+        ask.syncItem(item.id, item);
       } else {
         const { item } = await apiPost<{ item: LibraryItem }>(
           "/api/library-items",
@@ -206,86 +181,12 @@ export function LibraryDashboard() {
     try {
       await apiDelete(`/api/library-items/${id}`);
       setItems((currentItems) => currentItems.filter((item) => item.id !== id));
-      syncAskResult(id, null);
+      ask.syncItem(id, null);
     } catch (error) {
       const message = handleApiError(error, "Could not delete this item");
       if (!isUnauthorizedError(error)) window.alert(message);
     } finally {
       setDeletingId(null);
-    }
-  }
-
-  const strongMatches = askResult?.matches.filter((match) => match.confidence === "strong") ?? [];
-  const weakMatches = askResult?.matches.filter((match) => match.confidence === "possible") ?? [];
-
-  function resetAsk() {
-    askRequestId.current++;
-    setAskResult(null);
-    setAskError(null);
-    setAskAnswer(null);
-    setAnswerError(null);
-    setIsAsking(false);
-    setIsAnswering(false);
-  }
-
-  async function handleAsk(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const trimmedQuery = askQuery.trim();
-    if (!trimmedQuery) return;
-
-    const requestId = ++askRequestId.current;
-
-    setIsAsking(true);
-    setAskError(null);
-    setAskAnswer(null);
-    setAnswerError(null);
-    setIsAnswering(false);
-
-    try {
-      const result = await apiPost<SearchResponse>("/api/search", {
-        query: trimmedQuery,
-      });
-
-      if (requestId !== askRequestId.current) return;
-
-      setAskResult({ ...result, query: trimmedQuery });
-    } catch (error) {
-      if (requestId !== askRequestId.current) return;
-
-      setAskResult(null);
-      setAskError(handleApiError(error, "Could not search your library"));
-    } finally {
-      if (requestId === askRequestId.current) {
-        setIsAsking(false);
-      }
-    }
-  }
-
-  // Opt-in: the only search step that spends generation quota.
-  async function handleAnswer() {
-    if (!askResult || strongMatches.length === 0) return;
-
-    const requestId = askRequestId.current;
-
-    setIsAnswering(true);
-    setAnswerError(null);
-
-    try {
-      const { answer } = await apiPost<{ answer: string }>("/api/search/answer", {
-        query: askResult.query,
-        // Same order as the numbered list, so [1], [2] in the answer line up.
-        itemIds: strongMatches.map((match) => match.id),
-      });
-
-      if (requestId !== askRequestId.current) return;
-      setAskAnswer(answer);
-    } catch (error) {
-      if (requestId !== askRequestId.current) return;
-      setAnswerError(handleApiError(error, "Could not write an answer"));
-    } finally {
-      if (requestId === askRequestId.current) {
-        setIsAnswering(false);
-      }
     }
   }
 
@@ -337,29 +238,26 @@ export function LibraryDashboard() {
 
         <div className="mt-6">
         <AskPanel
-          query={askQuery}
-          onQueryChange={(value) => {
-            setAskQuery(value);
-            if (!value.trim()) resetAsk();
-          }}
-          onSubmit={(event) => void handleAsk(event)}
-          isAsking={isAsking}
+          query={ask.query}
+          onQueryChange={ask.changeQuery}
+          onSubmit={(event) => void ask.handleAsk(event)}
+          isAsking={ask.isAsking}
         >
           {/* Announced to screen readers as results, answers and errors arrive. */}
-          <div aria-live="polite" aria-busy={isAsking || isAnswering}>
-            {askError ? (
-              <p className="mt-4 text-sm font-medium text-red-700">{askError}</p>
+          <div aria-live="polite" aria-busy={ask.isAsking || ask.isAnswering}>
+            {ask.error ? (
+              <p className="mt-4 text-sm font-medium text-red-700">{ask.error}</p>
             ) : null}
 
-            {askResult ? (
+            {ask.result ? (
               <div className="mt-5">
-                {askResult.notice ? (
-                  <p className="mb-3 rounded-xl border border-border px-3 py-2 text-sm text-muted">{askResult.notice}</p>
+                {ask.result.notice ? (
+                  <p className="mb-3 rounded-xl border border-border px-3 py-2 text-sm text-muted">{ask.result.notice}</p>
                 ) : null}
 
-                {strongMatches.length === 0 ? (
+                {ask.strongMatches.length === 0 ? (
                   <p className="leading-7 text-muted">
-                    {weakMatches.length > 0
+                    {ask.weakMatches.length > 0
                       ? "No clear match in your library."
                       : "Nothing in your library looks related to that yet."}
                   </p>
@@ -367,34 +265,34 @@ export function LibraryDashboard() {
                   <>
                     <div className="flex flex-wrap items-center gap-3">
                       <p className="text-sm text-muted">
-                        {strongMatches.length}{" "}
-                        {strongMatches.length === 1 ? "match" : "matches"}
-                        {askResult.mode === "keyword" ? " by keyword" : ""}
+                        {ask.strongMatches.length}{" "}
+                        {ask.strongMatches.length === 1 ? "match" : "matches"}
+                        {ask.result.mode === "keyword" ? " by keyword" : ""}
                       </p>
-                      {askResult.canAnswer && !askAnswer ? (
+                      {ask.result.canAnswer && !ask.answer ? (
                         <button
                           type="button"
-                          onClick={() => void handleAnswer()}
-                          disabled={isAnswering}
+                          onClick={() => void ask.handleAnswer()}
+                          disabled={ask.isAnswering}
                           className="inline-flex items-center gap-2 rounded-xl border border-foreground px-3.5 py-1.5 text-sm font-medium transition-colors hover:bg-foreground hover:text-background disabled:opacity-50"
                         >
                           <SparkleIcon className="size-4" />
-                          {isAnswering ? "Writing answer..." : "Summarize with AI"}
+                          {ask.isAnswering ? "Writing answer..." : "Summarize with AI"}
                         </button>
                       ) : null}
                     </div>
 
-                    {answerError ? (
-                      <p className="mt-3 text-sm font-medium text-red-700">{answerError}</p>
+                    {ask.answerError ? (
+                      <p className="mt-3 text-sm font-medium text-red-700">{ask.answerError}</p>
                     ) : null}
-                    {askAnswer ? (
+                    {ask.answer ? (
                       <p className="mt-4 whitespace-pre-line rounded-xl border-l-2 border-foreground pl-4 leading-7">
-                        {askAnswer}
+                        {ask.answer}
                       </p>
                     ) : null}
 
                     <ol className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {strongMatches.map((match, index) => (
+                      {ask.strongMatches.map((match, index) => (
                         <AskMatch key={match.id} match={match} citation={index + 1} />
                       ))}
                     </ol>
@@ -403,13 +301,13 @@ export function LibraryDashboard() {
 
                 {/* Weaker signals stay folded: a vague query shouldn't present
                     noise as an answer, but nothing possibly relevant is lost. */}
-                {weakMatches.length > 0 ? (
+                {ask.weakMatches.length > 0 ? (
                   <details className="mt-4 text-sm">
                     <summary className="cursor-pointer text-muted hover:text-foreground">
-                      Show {weakMatches.length} weaker {weakMatches.length === 1 ? "match" : "matches"}
+                      Show {ask.weakMatches.length} weaker {ask.weakMatches.length === 1 ? "match" : "matches"}
                     </summary>
                     <ul className="mt-3 grid gap-3 opacity-80 sm:grid-cols-2">
-                      {weakMatches.map((match) => (
+                      {ask.weakMatches.map((match) => (
                         <AskMatch key={match.id} match={match} />
                       ))}
                     </ul>
