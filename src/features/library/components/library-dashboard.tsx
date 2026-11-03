@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { apiDelete, apiPatch, apiPost, isUnauthorizedError } from "@/lib/api-client";
 import { ALLOWED_IMAGE_TYPES, MAX_SOURCE_IMAGE_BYTES } from "@/features/library/constants";
@@ -9,7 +9,6 @@ import { compressImage } from "@/features/library/compress-image";
 import { itemImageUrl } from "@/features/library/image-url";
 import type {
   CaptureType,
-  LibraryFilter,
   LibraryItem,
   SearchResponse,
 } from "@/features/library/types";
@@ -27,7 +26,7 @@ import { AskMatch } from "@/features/library/components/ask-match";
 import { useGreeting } from "@/features/library/hooks/use-greeting";
 import { useApiErrorHandler } from "@/features/library/hooks/use-api-error-handler";
 import { useLibraryData } from "@/features/library/hooks/use-library-data";
-import { foldCase } from "@/features/library/fold-case";
+import { useLibraryFilters } from "@/features/library/hooks/use-library-filters";
 import { isCaptureType } from "@/features/library/capture-type";
 
 export function LibraryDashboard() {
@@ -36,8 +35,8 @@ export function LibraryDashboard() {
   const handleApiError = useApiErrorHandler();
   const { user, items, setItems, isLoading, loadError, geminiKey, setGeminiKey } =
     useLibraryData(handleApiError);
-  const [activeFilter, setActiveFilter] = useState<LibraryFilter>("all");
-  const [query, setQuery] = useState("");
+  const { activeFilter, setActiveFilter, query, setQuery, filterCounts, visibleItems } =
+    useLibraryFilters(items);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<LibraryItem | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -64,29 +63,6 @@ export function LibraryDashboard() {
   const [isAnswering, setIsAnswering] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  const filterCounts = useMemo(() => {
-    return {
-      all: items.length,
-      link: items.filter((item) => item.type === "link").length,
-      note: items.filter((item) => item.type === "note").length,
-      image: items.filter((item) => item.type === "image").length,
-    };
-  }, [items]);
-
-  const visibleItems = useMemo(() => {
-    const normalizedQuery = foldCase(query.trim());
-
-    return items.filter((item) => {
-      const matchesFilter =
-        activeFilter === "all" || item.type === activeFilter;
-      const matchesQuery =
-        normalizedQuery.length === 0 ||
-        foldCase(`${item.title} ${item.description} ${item.source}`).includes(normalizedQuery);
-
-      return matchesFilter && matchesQuery;
-    });
-  }, [activeFilter, items, query]);
 
   async function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
     const input = event.target;
