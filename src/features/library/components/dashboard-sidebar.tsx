@@ -27,7 +27,10 @@ export const filterOptions: FilterOption[] = [
 ];
 
 export function filterLabel(filter: LibraryFilter): string {
-  return filterOptions.find((option) => option.value === filter)?.label ?? "All items";
+  return (
+    filterOptions.find((option) => option.value === filter)?.label ??
+    "All items"
+  );
 }
 
 function getInitials(name: string) {
@@ -69,7 +72,11 @@ export function DashboardSidebar({
       aria-label="Unlost menu"
       className={`${embedded ? "md:h-full" : "sticky top-0 md:h-screen"} z-10 flex items-center gap-2 bg-foreground px-4 py-3 text-background md:w-60 md:shrink-0 md:flex-col md:items-stretch md:gap-0 md:px-3 md:py-5`}
     >
-      <Link href="/" aria-label="Unlost home" className="mr-auto px-2 font-display text-xl md:mr-0">
+      <Link
+        href="/"
+        aria-label="Unlost home"
+        className="mr-auto px-2 font-display text-xl md:mr-0"
+      >
         unlost.
       </Link>
 
@@ -77,9 +84,9 @@ export function DashboardSidebar({
         type="button"
         aria-haspopup="dialog"
         onClick={onNewItem}
-        className="flex items-center justify-center gap-2 rounded-xl bg-background px-3 py-2.5 text-sm font-medium text-foreground transition-opacity hover:opacity-90 md:mt-7"
+        className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-xl bg-background px-3 py-2.5 text-sm font-medium text-foreground transition-opacity hover:opacity-90 md:mt-7"
       >
-        <PlusIcon className="size-[18px]" />
+        <PlusIcon className="size-4.5" />
         <span className="sr-only md:not-sr-only">New item</span>
       </button>
 
@@ -98,7 +105,9 @@ export function DashboardSidebar({
                 >
                   <Icon className="size-4" />
                   <span className="flex-1 text-left">{label}</span>
-                  <span className="text-xs tabular-nums text-background/50">{counts[value]}</span>
+                  <span className="text-xs tabular-nums text-background/50">
+                    {counts[value]}
+                  </span>
                 </button>
               </li>
             );
@@ -110,7 +119,7 @@ export function DashboardSidebar({
         type="button"
         aria-haspopup="dialog"
         onClick={onOpenSettings}
-        className="flex items-center gap-3 rounded-lg p-2.5 text-sm text-background/70 transition-colors hover:bg-background/10 hover:text-background md:mt-auto md:px-3 md:py-2"
+        className="flex items-center gap-3 rounded-lg p-3.5 text-sm text-background/70 transition-colors hover:bg-background/10 hover:text-background md:mt-auto md:px-3 md:py-2"
       >
         <SettingsIcon className="size-4" />
         <span className="sr-only md:not-sr-only">Settings</span>
@@ -131,7 +140,7 @@ export function DashboardSidebar({
           type="button"
           title="Sign out"
           onClick={onSignOut}
-          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-background/70 transition-colors hover:bg-background/10 hover:text-background"
+          className="flex size-11 shrink-0 items-center justify-center rounded-lg text-background/70 transition-colors hover:bg-background/10 hover:text-background md:size-9"
         >
           <SignOutIcon className="size-4" />
           <span className="sr-only">Sign out</span>
@@ -148,12 +157,16 @@ type FilterChipsProps = {
 };
 
 // Phones: the sidebar's filters as a scrollable row of chips.
-export function FilterChips({ activeFilter, counts, onFilterChange }: FilterChipsProps) {
+export function FilterChips({
+  activeFilter,
+  counts,
+  onFilterChange,
+}: FilterChipsProps) {
   return (
     <div
       role="group"
       aria-label="Filter by type"
-      className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:hidden"
+      className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none md:hidden"
     >
       {filterOptions.map(({ label, value }) => (
         <button
@@ -163,7 +176,8 @@ export function FilterChips({ activeFilter, counts, onFilterChange }: FilterChip
           onClick={() => onFilterChange(value)}
           className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${activeFilter === value ? "bg-foreground text-background" : "border border-border text-muted"}`}
         >
-          {label} <span className="tabular-nums opacity-60">{counts[value]}</span>
+          {label}{" "}
+          <span className="tabular-nums opacity-60">{counts[value]}</span>
         </button>
       ))}
     </div>
