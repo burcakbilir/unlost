@@ -75,7 +75,7 @@ export function ProductPreview() {
             <span className="ml-3 text-xs text-muted">unlost.app/dashboard</span>
           </div>
 
-          <div inert aria-hidden="true" className="relative h-[560px] overflow-hidden md:flex">
+          <div inert aria-hidden="true" className="relative h-140 overflow-hidden md:flex">
             <DashboardSidebar
               embedded
               user={{ name: "Ada Lovelace", email: "ada@example.com" }}
@@ -113,7 +113,7 @@ export function ProductPreview() {
               </div>
             </div>
             {/* Fade the cut-off bottom edge into the page. */}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-background to-transparent" />
           </div>
         </div>
       </div>
