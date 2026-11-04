@@ -5,8 +5,8 @@ import {
   sessionMaxAgeSeconds,
 } from "@/lib/session";
 
-export async function setSessionCookie(userId: string) {
-  const token = createSessionToken(userId);
+export async function setSessionCookie(userId: string, sessionVersion: number) {
+  const token = createSessionToken(userId, sessionVersion);
   const cookieStore = await cookies();
 
   cookieStore.set(sessionCookieName, token, {

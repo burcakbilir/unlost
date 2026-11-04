@@ -88,7 +88,7 @@ export async function POST(request: Request) {
     throw error;
   }
 
-  await setSessionCookie(user.id);
+  await setSessionCookie(user.id, user.sessionVersion);
 
   return NextResponse.json(
     { user: { id: user.id, name: user.name, email: user.email } },

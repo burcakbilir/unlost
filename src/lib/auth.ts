@@ -19,9 +19,11 @@ export async function getRequestUser(): Promise<AuthUser | null> {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
+    select: { id: true, name: true, email: true, sessionVersion: true },
   });
 
-  if (!user) {
+  // A version mismatch means the user signed out after this token was issued.
+  if (!user || user.sessionVersion !== session.sessionVersion) {
     return null;
   }
 

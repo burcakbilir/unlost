@@ -18,6 +18,10 @@ model User {
   // Null until they add one; AI features stay off without it.
   geminiApiKeyEncrypted String?
 
+  // Copied into every session token. Signing out bumps it, which makes every
+  // token issued before that (on any device) stop working.
+  sessionVersion Int @default(0)
+
   libraryItems LibraryItem[]
   inviteCode   InviteCode?
 
