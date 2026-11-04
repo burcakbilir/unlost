@@ -28,7 +28,10 @@ export function SettingsPanel({
   onClose,
 }: SettingsPanelProps) {
   const [apiKey, setApiKey] = useState("");
-  const [keyMessage, setKeyMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const [keyMessage, setKeyMessage] = useState<{
+    text: string;
+    isError: boolean;
+  } | null>(null);
   const [isSavingKey, setIsSavingKey] = useState(false);
   const [password, setPassword] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -48,9 +51,15 @@ export function SettingsPanel({
       );
       onGeminiKeyChange(result.geminiKey);
       setApiKey("");
-      setKeyMessage({ text: "Key saved. Smart search and auto-tagging are on.", isError: false });
+      setKeyMessage({
+        text: "Key saved. Smart search and auto-tagging are on.",
+        isError: false,
+      });
     } catch (error) {
-      setKeyMessage({ text: onApiError(error, "Could not save this key"), isError: true });
+      setKeyMessage({
+        text: onApiError(error, "Could not save this key"),
+        isError: true,
+      });
     } finally {
       setIsSavingKey(false);
     }
@@ -63,9 +72,15 @@ export function SettingsPanel({
     try {
       await apiDelete("/api/settings/gemini-key");
       onGeminiKeyChange(null);
-      setKeyMessage({ text: "Key removed. Search now uses keywords only.", isError: false });
+      setKeyMessage({
+        text: "Key removed. Search now uses keywords only.",
+        isError: false,
+      });
     } catch (error) {
-      setKeyMessage({ text: onApiError(error, "Could not remove the key"), isError: true });
+      setKeyMessage({
+        text: onApiError(error, "Could not remove the key"),
+        isError: true,
+      });
     } finally {
       setIsSavingKey(false);
     }
@@ -100,7 +115,11 @@ export function SettingsPanel({
         <h2 id={SETTINGS_TITLE_ID} className="font-display text-3xl">
           Settings
         </h2>
-        <button type="button" onClick={onClose} className="border border-border px-4 py-2 text-sm rounded-xl">
+        <button
+          type="button"
+          onClick={onClose}
+          className="border border-border px-4 py-2 text-sm rounded-xl"
+        >
           Close
         </button>
       </div>
@@ -109,8 +128,8 @@ export function SettingsPanel({
         <h3 className="text-lg font-medium">Gemini API key</h3>
         <p className="text-sm leading-6 text-muted">
           Unlost uses your own free Gemini key for smart search, tags and image
-          descriptions, so your usage never depends on anyone else&rsquo;s quota.
-          Get one at{" "}
+          descriptions, so your usage never depends on anyone else&rsquo;s
+          quota. Get one at{" "}
           <a
             href="https://aistudio.google.com/apikey"
             target="_blank"
@@ -122,8 +141,9 @@ export function SettingsPanel({
           . Without a key, everything still works with keyword search.
         </p>
         <p className="text-sm leading-6 text-muted">
-          On Google&rsquo;s free tier, Google may use what you send to improve its
-          products. Don&rsquo;t save anything you wouldn&rsquo;t want processed that way.
+          On Google&rsquo;s free tier, Google may use what you send to improve
+          its products. Don&rsquo;t save anything you wouldn&rsquo;t want
+          processed that way.
         </p>
 
         <p className="text-sm">
@@ -136,9 +156,14 @@ export function SettingsPanel({
           )}
         </p>
 
-        <form onSubmit={(event) => void handleSaveKey(event)} className="flex flex-col gap-3 sm:flex-row">
+        <form
+          onSubmit={(event) => void handleSaveKey(event)}
+          className="flex flex-col gap-3 sm:flex-row"
+        >
           <label className="flex-1">
-            <span className="sr-only">{geminiKey ? "Replace Gemini API key" : "Gemini API key"}</span>
+            <span className="sr-only">
+              {geminiKey ? "Replace Gemini API key" : "Gemini API key"}
+            </span>
             <input
               type="password"
               name="geminiApiKey"
@@ -147,7 +172,11 @@ export function SettingsPanel({
               autoComplete="off"
               spellCheck={false}
               data-autofocus
-              placeholder={geminiKey ? "Paste a new key to replace it" : "Paste your Gemini API key"}
+              placeholder={
+                geminiKey
+                  ? "Paste a new key to replace it"
+                  : "Paste your Gemini API key"
+              }
               className={inputClassName}
             />
           </label>
@@ -202,7 +231,7 @@ export function SettingsPanel({
           <button
             type="submit"
             disabled={isDeleting || !password}
-            className="rounded-xl bg-red-700 px-6 py-3 text-white disabled:opacity-60"
+            className="rounded-xl bg-red-700 px-6 py-3 text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isDeleting ? "Deleting..." : "Delete account"}
           </button>

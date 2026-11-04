@@ -71,7 +71,7 @@ export function RegisterForm({
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-8 px-5 py-10">
+    <main className="flex min-h-screen flex-col items-center gap-8 px-5 pt-16 pb-10 sm:pt-24">
       <Link href="/" aria-label="Unlost home" className="font-display text-xl">
         unlost.
       </Link>
@@ -188,7 +188,7 @@ export function RegisterForm({
           </div>
 
           <div className="grid gap-1.5 text-sm font-medium">
-            <label htmlFor="register-password-confirm">Password Confirm</label>
+            <label htmlFor="register-password-confirm">Confirm password</label>
             <PasswordInput
               id="register-password-confirm"
               name="passwordConfirm"
