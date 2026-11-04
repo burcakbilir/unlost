@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Placeholders only: the build needs these to exist and pass the format checks
+    # in src/lib/session.ts and secret-box.ts, but never connects to a database.
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      SESSION_SECRET: ci-only-session-secret-not-used-anywhere-real
+      ENCRYPTION_KEY: Y2ktb25seS1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcyE=
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=critical

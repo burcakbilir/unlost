@@ -9,6 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "typecheck": "prisma generate && tsc --noEmit",
+    "check": "npm run lint && npm run typecheck && npm run test",
     "invites": "tsx scripts/create-invites.ts"
   },
   "dependencies": {
