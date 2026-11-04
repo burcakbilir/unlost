@@ -55,11 +55,7 @@ export function LoginForm() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-8 px-5 py-10">
-      <Link
-        href="/"
-        aria-label="Unlost home"
-        className="font-display text-xl"
-      >
+      <Link href="/" aria-label="Unlost home" className="font-display text-xl">
         unlost.
       </Link>
       <div className="w-full max-w-md rounded-2xl border border-border p-8">
@@ -69,40 +65,56 @@ export function LoginForm() {
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 grid gap-4" noValidate>
-          <label className="grid gap-1.5 text-sm font-medium">
-            Email
+          <div className="grid gap-1.5 text-sm font-medium">
+            <label htmlFor="login-email">Email</label>
             <input
+              id="login-email"
               type="email"
               name="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
               autoComplete="username"
+              aria-invalid={Boolean(fieldErrors.email)}
+              aria-describedby={
+                fieldErrors.email ? "login-email-error" : undefined
+              }
               className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldErrors.email ? (
-              <span className="text-sm font-normal text-red-600">
+              <span
+                id="login-email-error"
+                className="text-sm font-normal text-red-600"
+              >
                 {fieldErrors.email}
               </span>
             ) : null}
-          </label>
+          </div>
 
-          <label className="grid gap-1.5 text-sm font-medium">
-            Password
+          <div className="grid gap-1.5 text-sm font-medium">
+            <label htmlFor="login-password">Password</label>
             <PasswordInput
+              id="login-password"
               name="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
               autoComplete="current-password"
+              aria-invalid={Boolean(fieldErrors.password)}
+              aria-describedby={
+                fieldErrors.password ? "login-password-error" : undefined
+              }
               className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldErrors.password ? (
-              <span className="text-sm font-normal text-red-600">
+              <span
+                id="login-password-error"
+                className="text-sm font-normal text-red-600"
+              >
                 {fieldErrors.password}
               </span>
             ) : null}
-          </label>
+          </div>
 
           {error ? (
             <p role="alert" className="text-sm text-red-600">
@@ -121,7 +133,10 @@ export function LoginForm() {
 
         <p className="mt-5 text-sm text-muted">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-semibold underline underline-offset-4">
+          <Link
+            href="/register"
+            className="font-semibold underline underline-offset-4"
+          >
             Create one
           </Link>
         </p>

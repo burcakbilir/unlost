@@ -1,6 +1,5 @@
 import { RegisterForm } from "@/features/auth/components/register-form";
 import type { Metadata } from "next";
-import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Sign up — Unlost",
@@ -8,11 +7,10 @@ export const metadata: Metadata = {
     "Create a free Unlost account and start building your personal library.",
 };
 
-export default function RegisterPage() {
-  // RegisterForm reads ?invite= with useSearchParams, which needs a Suspense boundary.
-  return (
-    <Suspense>
-      <RegisterForm />
-    </Suspense>
-  );
+// Invite links look like /register?invite=CODE. Reading it here on the server
+// means the form arrives in the first HTML with the code already filled in.
+export default async function RegisterPage({ searchParams }: PageProps<"/register">) {
+  const { invite } = await searchParams;
+
+  return <RegisterForm initialInviteCode={typeof invite === "string" ? invite : ""} />;
 }

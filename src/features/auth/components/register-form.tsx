@@ -3,17 +3,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { apiPost } from "@/lib/api-client";
 import { PasswordInput } from "@/features/auth/components/password-input";
 import { registerFormSchema } from "@/features/auth/schema";
 import { z } from "@/lib/zod";
 
-export function RegisterForm() {
+export function RegisterForm({
+  initialInviteCode,
+}: {
+  initialInviteCode: string;
+}) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  // Invite links look like /register?invite=CODE, so the field arrives filled in.
-  const [inviteCode, setInviteCode] = useState(searchParams.get("invite") ?? "");
+  const [inviteCode, setInviteCode] = useState(initialInviteCode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -71,11 +72,7 @@ export function RegisterForm() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-8 px-5 py-10">
-      <Link
-        href="/"
-        aria-label="Unlost home"
-        className="font-display text-xl"
-      >
+      <Link href="/" aria-label="Unlost home" className="font-display text-xl">
         unlost.
       </Link>
       <div className="w-full max-w-md rounded-2xl border border-border p-8">
@@ -85,9 +82,10 @@ export function RegisterForm() {
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 grid gap-4" noValidate>
-          <label className="grid gap-1.5 text-sm font-medium">
-            Invite code
+          <div className="grid gap-1.5 text-sm font-medium">
+            <label htmlFor="register-invite-code">Invite code</label>
             <input
+              id="register-invite-code"
               name="inviteCode"
               value={inviteCode}
               onChange={(event) => setInviteCode(event.target.value)}
@@ -95,84 +93,127 @@ export function RegisterForm() {
               autoComplete="off"
               spellCheck={false}
               aria-invalid={Boolean(fieldsError.inviteCode)}
+              aria-describedby={
+                fieldsError.inviteCode
+                  ? "register-invite-code-error"
+                  : undefined
+              }
               className="min-h-12 rounded-xl border border-border px-4 font-mono focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldsError.inviteCode ? (
-              <span className="text-sm font-normal text-red-600">
+              <span
+                id="register-invite-code-error"
+                className="text-sm font-normal text-red-600"
+              >
                 {fieldsError.inviteCode}
               </span>
             ) : null}
-          </label>
+          </div>
 
-          <label className="grid gap-1.5 text-sm font-medium">
-            Name
+          <div className="grid gap-1.5 text-sm font-medium">
+            <label htmlFor="register-name">Name</label>
             <input
+              id="register-name"
               name="name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
               autoComplete="name"
+              aria-invalid={Boolean(fieldsError.name)}
+              aria-describedby={
+                fieldsError.name ? "register-name-error" : undefined
+              }
               className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldsError.name ? (
-              <span className="text-sm font-normal text-red-600">
+              <span
+                id="register-name-error"
+                className="text-sm font-normal text-red-600"
+              >
                 {fieldsError.name}
               </span>
             ) : null}
-          </label>
+          </div>
 
-          <label className="grid gap-1.5 text-sm font-medium">
-            Email
+          <div className="grid gap-1.5 text-sm font-medium">
+            <label htmlFor="register-email">Email</label>
             <input
+              id="register-email"
               type="email"
               name="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
               autoComplete="username"
+              aria-invalid={Boolean(fieldsError.email)}
+              aria-describedby={
+                fieldsError.email ? "register-email-error" : undefined
+              }
               className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldsError.email ? (
-              <span className="text-sm font-normal text-red-600">
+              <span
+                id="register-email-error"
+                className="text-sm font-normal text-red-600"
+              >
                 {fieldsError.email}
               </span>
             ) : null}
-          </label>
+          </div>
 
-          <label className="grid gap-1.5 text-sm font-medium">
-            Password
+          <div className="grid gap-1.5 text-sm font-medium">
+            <label htmlFor="register-password">Password</label>
             <PasswordInput
+              id="register-password"
               name="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
               autoComplete="new-password"
               placeholder="At least 8 characters"
+              aria-invalid={Boolean(fieldsError.password)}
+              aria-describedby={
+                fieldsError.password ? "register-password-error" : undefined
+              }
               className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldsError.password ? (
-              <span className="text-sm font-normal text-red-600">
+              <span
+                id="register-password-error"
+                className="text-sm font-normal text-red-600"
+              >
                 {fieldsError.password}
               </span>
             ) : null}
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            Password Confirm
+          </div>
+
+          <div className="grid gap-1.5 text-sm font-medium">
+            <label htmlFor="register-password-confirm">Password Confirm</label>
             <PasswordInput
+              id="register-password-confirm"
               name="passwordConfirm"
               value={passwordConfirm}
               onChange={(event) => setPasswordConfirm(event.target.value)}
               required
               autoComplete="new-password"
               placeholder="Repeat your password"
+              aria-invalid={Boolean(fieldsError.passwordConfirm)}
+              aria-describedby={
+                fieldsError.passwordConfirm
+                  ? "register-password-confirm-error"
+                  : undefined
+              }
               className="min-h-12 rounded-xl border border-border px-4 focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
             />
             {fieldsError.passwordConfirm ? (
-              <span className="text-sm font-normal text-red-600">
+              <span
+                id="register-password-confirm-error"
+                className="text-sm font-normal text-red-600"
+              >
                 {fieldsError.passwordConfirm}
               </span>
             ) : null}
-          </label>
+          </div>
 
           {error ? (
             <p role="alert" className="text-sm text-red-600">
@@ -200,7 +241,10 @@ export function RegisterForm() {
 
         <p className="mt-3 text-sm text-muted">
           Already have an account?{" "}
-          <Link href="/login" className="font-semibold underline underline-offset-4">
+          <Link
+            href="/login"
+            className="font-semibold underline underline-offset-4"
+          >
             Sign in
           </Link>
         </p>
