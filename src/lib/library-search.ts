@@ -179,12 +179,15 @@ export async function keywordSearch(ownerId: string, query: string): Promise<Mat
   const terms = keywordTerms(query);
   if (terms.length === 0) return [];
 
+  // Prisma creates list columns as nullable, and NULL || text is NULL: without
+  // coalesce, one NULL array would blank the item's whole search document.
   return prisma.$queryRaw<MatchRow[]>`
     WITH docs AS (
       SELECT id, type, title, description, source, tags, "imageMimeType", "updatedAt",
              setweight(to_tsvector('simple', title), 'A') ||
              setweight(to_tsvector('simple',
-               array_to_string(tags, ' ') || ' ' || array_to_string("searchKeywords", ' ')), 'B') ||
+               coalesce(array_to_string(tags, ' '), '') || ' ' ||
+               coalesce(array_to_string("searchKeywords", ' '), '')), 'B') ||
              setweight(to_tsvector('simple',
                description || ' ' || coalesce("imageCaption", '')), 'C') AS doc,
              concat_ws(' ', title, description, "imageCaption",

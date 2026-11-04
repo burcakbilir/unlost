@@ -48,6 +48,8 @@ model RateLimit {
   count       Int      @default(0)
 
   @@id([key, windowStart])
+  // The primary key leads with `key`, so pruning by age alone can't use it.
+  @@index([windowStart])
   @@map("rate_limits")
 }
 

@@ -2,10 +2,13 @@
   "name": "unlost",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "build:deploy": "prisma generate && prisma migrate deploy && next build",
+    "build:deploy": "prisma generate && sh scripts/migrate-deploy.sh && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",

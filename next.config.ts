@@ -1,4 +1,7 @@
 import type { NextConfig } from "next";
+import { assertValidEnv } from "./src/lib/env";
+
+assertValidEnv();
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -35,6 +38,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  // No need to advertise the framework (and its version range) to every visitor.
+  poweredByHeader: false,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

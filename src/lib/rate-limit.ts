@@ -95,4 +95,6 @@ export const RATE_LIMITS = {
   answerByUser: { name: "answer:user", limit: 20, windowSeconds: 60 * 60 },
   writeByUser: { name: "write:user", limit: 60, windowSeconds: 60 * 60 },
   apiKeyByUser: { name: "api-key:user", limit: 10, windowSeconds: 60 * 60 },
+  // Its own counter: wrong passwords here shouldn't use up the user's sign-in attempts.
+  accountDeleteByUser: { name: "account-delete:user", limit: 5, windowSeconds: 60 * 60 },
 } as const satisfies Record<string, RateLimitRule>;
