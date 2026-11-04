@@ -7,14 +7,25 @@ export function isSafeHttpUrl(value: string): boolean {
   }
 }
 
+// Resolves the value the way the browser will, instead of pattern-matching the
+// raw string: URL parsing drops tabs and newlines and treats "\" as "/", so
+// strings like "/\t/evil.example" only turn into another site after parsing.
+const REDIRECT_BASE = "http://redirect.invalid";
+
 export function safeRedirectPath(value: string | null): string {
-  if (
-    !value ||
-    !value.startsWith("/") ||
-    value.startsWith("//") ||
-    value.startsWith("/\\")
-  ) {
-    return "/dashboard";
+  const fallback = "/dashboard";
+
+  if (!value?.startsWith("/")) return fallback;
+
+  let url: URL;
+  try {
+    url = new URL(value, REDIRECT_BASE);
+  } catch {
+    return fallback;
   }
-  return value;
+
+  if (url.origin !== REDIRECT_BASE) return fallback;
+
+  // Rebuilt from the parsed parts, so what we return is exactly what was checked.
+  return `${url.pathname}${url.search}${url.hash}`;
 }

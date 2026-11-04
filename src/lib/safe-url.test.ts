@@ -31,4 +31,17 @@ describe("safeRedirectPath", () => {
     expect(safeRedirectPath("/\\evil.example")).toBe("/dashboard");
     expect(safeRedirectPath(null)).toBe("/dashboard");
   });
+
+  // URL parsing strips tabs and newlines, so "/\t/evil.example" becomes
+  // "//evil.example" — another site — even though it starts with a single "/".
+  it("refuses paths that only become another site once parsed", () => {
+    expect(safeRedirectPath("/\t/evil.example")).toBe("/dashboard");
+    expect(safeRedirectPath("/\n/evil.example")).toBe("/dashboard");
+    expect(safeRedirectPath("/\r\n/evil.example")).toBe("/dashboard");
+    expect(safeRedirectPath("\t//evil.example")).toBe("/dashboard");
+  });
+
+  it("keeps the query and hash of a same-site path", () => {
+    expect(safeRedirectPath("/dashboard?tab=links#top")).toBe("/dashboard?tab=links#top");
+  });
 });
