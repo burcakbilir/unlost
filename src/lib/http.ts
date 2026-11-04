@@ -7,6 +7,12 @@ export class BodyTooLargeError extends Error {}
 // Reads the body as a stream and stops once it passes maxBytes, so an oversized
 // request is rejected before it is buffered and parsed in full.
 export async function readJsonBody(request: Request, maxBytes: number): Promise<unknown> {
+  // A cross-site HTML form can only send form or text/plain bodies, never
+  // application/json, so requiring JSON blocks forged form posts (CSRF) on top
+  // of the SameSite cookie. Returning null lets the route's schema reject it.
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().startsWith("application/json")) return null;
+
   const declared = Number(request.headers.get("content-length"));
 
   if (Number.isFinite(declared) && declared > maxBytes) {

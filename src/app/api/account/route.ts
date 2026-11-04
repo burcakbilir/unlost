@@ -31,7 +31,7 @@ export async function DELETE(request: Request) {
     return jsonError(firstIssueMessage(parsed.error), 400);
   }
 
-  const limited = await consumeRateLimit(RATE_LIMITS.loginByEmail, user.email);
+  const limited = await consumeRateLimit(RATE_LIMITS.accountDeleteByUser, user.id);
   if (!limited.ok) return tooManyRequests(limited);
 
   const account = await prisma.user.findUnique({
