@@ -28,7 +28,7 @@ export default function PrivacyPage() {
         <p className="mt-2">
           Only if you add your own Gemini API key: the title, description and
           image of items you save (to generate tags and descriptions), your
-          search questions, and — when you click &ldquo;Summarize with
+          search questions, and — when you click &ldquo;Answer with
           AI&rdquo; — the matching items. These requests use your key, under
           your agreement with Google. On Google&rsquo;s free tier, Google may
           use this content to improve its products and people may review it,

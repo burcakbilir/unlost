@@ -49,7 +49,7 @@ export function AskSection({ ask }: { ask: ReturnType<typeof useAsk> }) {
                       className="inline-flex items-center gap-2 rounded-xl border border-foreground px-3.5 py-1.5 text-sm font-medium transition-colors hover:bg-foreground hover:text-background disabled:opacity-50"
                     >
                       <SparkleIcon className="size-4" />
-                      {ask.isAnswering ? "Writing answer..." : "Summarize with AI"}
+                      {ask.isAnswering ? "Writing answer..." : "Answer with AI"}
                     </button>
                   ) : null}
                 </div>
