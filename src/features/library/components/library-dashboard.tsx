@@ -8,11 +8,7 @@ import {
   SettingsPanel,
 } from "@/features/settings/components/settings-panel";
 import { Modal } from "@/components/modal";
-import { SearchIcon } from "@/features/library/components/icons";
-import {
-  DashboardSidebar,
-  filterLabel,
-} from "@/features/library/components/dashboard-sidebar";
+import { DashboardSidebar } from "@/features/library/components/dashboard-sidebar";
 import { AskSection } from "@/features/library/components/ask-section";
 import { ItemComposer } from "@/features/library/components/item-composer";
 import { ConfirmDeleteDialog } from "@/features/library/components/confirm-delete-dialog";
@@ -101,31 +97,12 @@ export function LibraryDashboard() {
 
       <main className="min-w-0 flex-1 px-4 py-6 sm:px-8 sm:py-10">
         <div className="mx-auto max-w-6xl">
-          <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="min-h-5 text-sm text-muted">
-                {greeting}
-                {greeting && user ? `, ${user.name.split(" ")[0]}` : ""}
-              </p>
-              <h1 className="mt-1 font-display text-3xl sm:text-4xl">
-                {filterLabel(activeFilter)}
-              </h1>
-            </div>
-            <label className="relative block sm:w-80">
-              <span className="sr-only">Filter your library by keyword</span>
-              <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-muted" />
-              <input
-                type="search"
-                name="filter"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Filter by keyword"
-                className="min-h-11 w-full rounded-xl border border-border pl-10 pr-4 text-sm focus:border-foreground focus:outline-none focus:ring-2 focus:ring-foreground/10"
-              />
-            </label>
-          </header>
+          <p className="min-h-5 text-sm text-muted">
+            {greeting}
+            {greeting && user ? `, ${user.name.split(" ")[0]}` : ""}
+          </p>
 
-          <div className="mt-6">
+          <div className="mt-3">
             <AskSection ask={ask} />
           </div>
 
@@ -159,6 +136,8 @@ export function LibraryDashboard() {
             activeFilter={activeFilter}
             counts={filterCounts}
             onFilterChange={setActiveFilter}
+            filterQuery={query}
+            onFilterQueryChange={setQuery}
             isLoading={isLoading}
             loadError={loadError}
             items={visibleItems}
