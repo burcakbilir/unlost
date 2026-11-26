@@ -1,6 +1,6 @@
 # Do two similar boxes (Search and Filter) confuse users?
 
-Status: ready-for-human
+Status: resolved
 
 ## Problem
 
@@ -35,3 +35,4 @@ Not decided yet. Grill this in a separate session before planning any change.
 - Folded into the real code with three fixes over the prototype: a compact Search block on
   phones, one heading per section (the type title moved down to the list), and Filter on
   the same toolbar as the list's count and chips.
+- 2026-11-26: Resolved. Merged to `main` in PR #18 (`feat/search-first-dashboard`).

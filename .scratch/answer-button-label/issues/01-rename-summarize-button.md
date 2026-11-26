@@ -1,6 +1,6 @@
 # Rename the "Summarize with AI" button to match Answer
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem
 
@@ -26,3 +26,4 @@ thing and pull the product's language in different directions.
 - 2026-11-25: Button renamed to "Answer with AI"; the privacy page and README now say
   "AI answer" instead of "AI summary". The Gemini prompt in `src/lib/gemini.ts` still
   says "summarize" on purpose: it tells the model what to do and isn't shown to users.
+- 2026-11-26: Resolved. Merged to `main` in PR #17 (`fix/answer-button-label`).
